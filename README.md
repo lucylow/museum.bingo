@@ -55,6 +55,7 @@ This project was built for the **DeveloperWeek New York 2026 Hackathon** under t
 | 🌍 **Multilingual UI** | On‑device translation (Google ML Kit) of bingo prompts and artwork descriptions (English, Spanish, French, German, Chinese). |
 | 🗣️ **Voice commands** | “Validate tile 3”, “Give me a hint”, “Show leaderboard” – integrated with speech recognition and TTS. |
 | 📊 **Museum analytics** | Tower pipelines aggregate anonymised visitor behaviour to help museums improve engagement. |
+| 🏅 **Gamification loop** | Scan → tile validation → points → streaks / badges / rank updates with celebration UI. |
 
 ---
 
@@ -328,6 +329,19 @@ Full API documentation in [`docs/api.md`](docs/api.md).
 
 Firestore indexes are defined in `firestore.indexes.json`.
 
+### Gamification collections
+
+The gamification layer expects (or simulates in local demo mode) the following collections:
+
+- `userStats/{userId}` – lifetime totals (badges, scans, best streak, bingos, museums completed)
+- `bingoSessions/{sessionId}` – per-session progress and score snapshots
+- `roomScores/{roomId}_{userId}` – realtime room leaderboard entries with speed tie-break metadata
+- `achievements/{userId}/earned/{achievementId}` – unlocked badges with `earnedAt`, `tier`, and display metadata
+- `scanEvents/{eventId}` – structured event log (`tile_validated`, `hint_used`, `badge_unlocked`, `bingo_completed`, `room_joined`, `leaderboard_updated`, `scan_failed`)
+- `dailyChallenges/{dateKey}` – daily museum prompt set and bonus reward configuration
+
+Type definitions for these documents are in `docs/mock_data/gamification-types.ts`.
+
 ---
 
 ## Real‑time Multiplayer with WebSockets
@@ -360,6 +374,13 @@ RTDB structure:
 /rooms/{roomId}/scores/{userId} : number
 /rooms/{roomId}/progress/{userId}/{tileId} : boolean
 ```
+
+Gamification sync flow for tile validation:
+
+1. Update local state immediately (points, streak, tile completion).
+2. Emit realtime room score update (`tile_validated`) for leaderboard/rank movement.
+3. Persist structured event for analytics aggregation.
+4. Re-sort leaderboard by points, then completion speed as tie-breaker.
 
 ---
 

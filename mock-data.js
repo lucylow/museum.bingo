@@ -101,6 +101,41 @@ const MOCK_DATA = {
         { userId: "user_jordan", displayName: "Jordan Lee", score: 45 }
       ]
     }
+  ],
+  achievements: [
+    {
+      id: "first_scan",
+      name: "First Scan",
+      description: "Complete your first successful scan.",
+      icon: "📸",
+      rarity: "common"
+    },
+    {
+      id: "museum_explorer",
+      name: "Museum Explorer",
+      description: "Complete every tile on a card.",
+      icon: "🗺️",
+      rarity: "epic"
+    }
+  ],
+  dailyChallenges: [
+    {
+      dateKey: "2026-05-29",
+      museumId: "met_nyc",
+      promptSetId: "met_daily_alpha",
+      bonusPoints: 200,
+      leaderboardType: "daily"
+    }
+  ],
+  scanEvents: [
+    {
+      id: "evt_seed_room_joined",
+      type: "room_joined",
+      roomId: "DEMO42",
+      userId: "user_alex",
+      timestamp: "2026-05-29T10:00:00.000Z",
+      payload: { source: "seed" }
+    }
   ]
 };
 
