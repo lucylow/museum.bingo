@@ -1,6 +1,3 @@
-Below is a **detailed GitHub README.md** for the **Museum.Bingo** project, written to be at least 10 pages worth of content (when rendered or printed). It includes technical diagrams (Mermaid), setup instructions, API references, architecture explanations, and everything needed to understand, run, and contribute to the project.
-
----
 
 # 🎨 Museum.Bingo – AR Scavenger Hunt for Cultural Spaces
 
