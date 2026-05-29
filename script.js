@@ -497,45 +497,75 @@ const GameManager = {
         });
     },
 
-    buildWinRuleContext({ snapshotBefore, snapshotAfter, tileIndex, scoreResult }) {
+    buildOptimisticWinRuleContext({ snapshotBefore, tileIndex, usedHint }) {
+        const rules = window.BingoRules;
+        const totalTiles = gameState.settings.cardSize * gameState.settings.cardSize;
         const linesBefore = snapshotBefore && Array.isArray(snapshotBefore.bingoLines) ? snapshotBefore.bingoLines.length : 0;
-        const linesAfter = snapshotAfter && Array.isArray(snapshotAfter.bingoLines) ? snapshotAfter.bingoLines.length : linesBefore;
-        const tilesFound = snapshotAfter && Array.isArray(snapshotAfter.completedTiles) ? snapshotAfter.completedTiles.length : gameState.foundItems.size;
-        const tilesTotal = gameState.settings.cardSize * gameState.settings.cardSize;
-        const isBlackout = snapshotAfter && snapshotAfter.completionState === "blackout";
-        const hasFullCard = Boolean(snapshotAfter && snapshotAfter.hasFullCard);
-        const bingoComplete = hasFullCard || isBlackout;
-        const roomVictory = Boolean(snapshotAfter && snapshotAfter.rank === 1 && bingoComplete);
-        const dailyChallengeComplete = Boolean(snapshotAfter && snapshotAfter.daily && snapshotAfter.daily.challengeCompleted);
+        const calc = rules && typeof rules.calculateScoreAfterValidation === "function"
+            ? rules.calculateScoreAfterValidation({
+                completedTilesBefore: snapshotBefore && snapshotBefore.completedTiles ? snapshotBefore.completedTiles : [],
+                tileId: Number(tileIndex),
+                gridSize: gameState.settings.cardSize,
+                streakBefore: Number(snapshotBefore && snapshotBefore.streak) || 0,
+                usedHint: Boolean(usedHint),
+                hasFullCardBefore: Boolean(snapshotBefore && snapshotBefore.hasFullCard),
+                difficultyMode: gameState.settings.difficultyMode
+            })
+            : null;
+        const linesAfter = calc && Array.isArray(calc.linesAfter) ? calc.linesAfter.length : linesBefore;
+        const tilesFound = calc && Array.isArray(calc.completedTilesAfter)
+            ? calc.completedTilesAfter.length
+            : ((snapshotBefore && Array.isArray(snapshotBefore.completedTiles) ? snapshotBefore.completedTiles.length : 0) + 1);
+        const bingoComplete = Boolean(calc && calc.completionState === "blackout");
         return {
             tileMatched: true,
             tileConfirmed: true,
             tileId: String(tileIndex),
             roomId: gameState.roomId,
-            streak: Number(snapshotAfter && snapshotAfter.streak) || 0,
-            bestStreak: Number(snapshotAfter && snapshotAfter.bestSessionStreak) || 0,
+            streak: calc ? Number(calc.streakAfter) : (Number(snapshotBefore && snapshotBefore.streak) || 0) + 1,
+            bestStreak: Math.max(
+                Number(snapshotBefore && snapshotBefore.bestSessionStreak) || 0,
+                calc ? Number(calc.streakAfter) : (Number(snapshotBefore && snapshotBefore.streak) || 0) + 1
+            ),
             newLinesCompleted: Math.max(0, linesAfter - linesBefore),
             totalLinesCompleted: linesAfter,
             tilesFound,
-            tilesTotal,
+            tilesTotal: totalTiles,
             bingoComplete,
-            roomVictory,
-            dailyChallengeComplete,
-            badgeUnlockedId: scoreResult && Array.isArray(scoreResult.unlockedBadges) && scoreResult.unlockedBadges[0]
-                ? scoreResult.unlockedBadges[0].id
-                : undefined,
+            roomVictory: Boolean(snapshotBefore && snapshotBefore.rank === 1 && bingoComplete),
+            dailyChallengeComplete: Boolean(snapshotBefore && snapshotBefore.daily && snapshotBefore.daily.challengeCompleted),
             sessionComplete: bingoComplete,
             scoreBefore: Number(snapshotBefore && snapshotBefore.points) || 0,
-            scoreAfter: Number(snapshotAfter && snapshotAfter.points) || 0,
-            roomRank: Number(snapshotAfter && snapshotAfter.rank) || undefined
+            scoreAfter: (Number(snapshotBefore && snapshotBefore.points) || 0) + Number(calc && calc.score ? calc.score.pointsEarned : 0),
+            roomRank: Number(snapshotBefore && snapshotBefore.rank) || undefined
         };
     },
 
-    evaluateAndApplyWinLadder(payload) {
+    enrichWinContextAfterValidation(ctx, { snapshotAfter, scoreResult }) {
+        const enriched = { ...ctx };
+        if (snapshotAfter) {
+            const linesAfter = Array.isArray(snapshotAfter.bingoLines) ? snapshotAfter.bingoLines.length : enriched.totalLinesCompleted;
+            enriched.streak = Number(snapshotAfter.streak) || enriched.streak;
+            enriched.bestStreak = Number(snapshotAfter.bestSessionStreak) || enriched.bestStreak;
+            enriched.totalLinesCompleted = linesAfter;
+            enriched.tilesFound = Array.isArray(snapshotAfter.completedTiles) ? snapshotAfter.completedTiles.length : enriched.tilesFound;
+            enriched.bingoComplete = Boolean(snapshotAfter.hasFullCard || snapshotAfter.completionState === "blackout");
+            enriched.roomVictory = Boolean(snapshotAfter.rank === 1 && enriched.bingoComplete);
+            enriched.dailyChallengeComplete = Boolean(snapshotAfter.daily && snapshotAfter.daily.challengeCompleted);
+            enriched.sessionComplete = enriched.bingoComplete;
+            enriched.scoreAfter = Number(snapshotAfter.points) || enriched.scoreAfter;
+            enriched.roomRank = Number(snapshotAfter.rank) || enriched.roomRank;
+        }
+        if (scoreResult && Array.isArray(scoreResult.unlockedBadges) && scoreResult.unlockedBadges[0]) {
+            enriched.badgeUnlockedId = scoreResult.unlockedBadges[0].id;
+        }
+        return enriched;
+    },
+
+    evaluateAndApplyWinLadder(ctx) {
         if (!window.WinRulesLadder || typeof window.WinRulesLadder.evaluateWinRules !== "function") {
             return null;
         }
-        const ctx = this.buildWinRuleContext(payload);
         const result = window.WinRulesLadder.evaluateWinRules(ctx);
         gameState.winLadderBonusPoints += Number(result.reward.points || 0);
         gameState.lastWinStates = Array.isArray(result.states) ? result.states : [];
@@ -1018,6 +1048,12 @@ const GameManager = {
                 const scanDuration = gameState.scanStartedAt ? (Date.now() - gameState.scanStartedAt) : Number.MAX_SAFE_INTEGER;
                 const tileIndex = Number(gameState.selectedCell.element.dataset.tileIndex || 0);
                 const snapshotBefore = gameState.gamification ? gameState.gamification.getStateSnapshot() : null;
+                const optimisticWinContext = this.buildOptimisticWinRuleContext({
+                    snapshotBefore,
+                    tileIndex,
+                    usedHint: gameState.usedHintSinceLastScan
+                });
+                const winResult = this.evaluateAndApplyWinLadder(optimisticWinContext);
                 const scoreResult = gameState.gamification
                     ? gameState.gamification.onTileValidated({
                         tileId: tileIndex,
@@ -1037,10 +1073,8 @@ const GameManager = {
                 this.checkWin();
 
                 if (scoreResult && scoreResult.accepted) {
-                    const winResult = this.evaluateAndApplyWinLadder({
-                        snapshotBefore,
+                    this.enrichWinContextAfterValidation(optimisticWinContext, {
                         snapshotAfter,
-                        tileIndex,
                         scoreResult
                     });
                     if (DOM.pointsTotal) {
@@ -1058,6 +1092,9 @@ const GameManager = {
                         this.createParticles(window.innerWidth / 2, window.innerHeight / 2, "#fbbf24", 40);
                     }
                     if (!winResult && gameState.settings.vibrationEnabled && navigator.vibrate) navigator.vibrate([40, 20, 40]);
+                } else if (winResult) {
+                    gameState.winLadderBonusPoints = Math.max(0, gameState.winLadderBonusPoints - Number(winResult.reward.points || 0));
+                    gameState.lastWinStates = [];
                 }
 
                 if (gameState.foundItems.size >= 3) {
