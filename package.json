@@ -1,0 +1,57 @@
+{
+  "name": "museum-bingo-ai-premium",
+  "version": "4.0.0",
+  "description": "Premium AI-Powered AR Gallery Scavenger Hunt - DeveloperWeek NY 2026 Hackathon",
+  "main": "index.html",
+  "scripts": {
+    "start": "open index.html"
+  },
+  "keywords": [
+    "premium",
+    "glassmorphism",
+    "ai",
+    "tensorflow",
+    "ar",
+    "scavenger-hunt",
+    "museum",
+    "gamification",
+    "education",
+    "voice",
+    "web-speech",
+    "kids",
+    "hackathon"
+  ],
+  "author": "Your Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourname/museum-bingo-ai"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.x",
+    "@tensorflow-models/coco-ssd": "^2.x"
+  },
+  "design": {
+    "theme": "Premium Glassmorphism",
+    "colors": {
+      "gold": "#fbbf24",
+      "dark-gold": "#d97706",
+      "midnight": "#0f172a",
+      "midnight-light": "#1e293b"
+    },
+    "features": [
+      "Glassmorphism UI",
+      "Gold & Midnight Aesthetic",
+      "High-end Animations",
+      "Premium Typography",
+      "Responsive Design"
+    ]
+  },
+  "ai-features": [
+    "Real-time object detection via TensorFlow.js COCO-SSD",
+    "Web Speech API for voice guidance",
+    "AI riddle system with 27 unique hints",
+    "Canvas-based detection visualization",
+    "Confidence-based item validation"
+  ]
+}
