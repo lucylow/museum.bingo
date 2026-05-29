@@ -49,6 +49,42 @@ const themes = {
     }
 };
 
+const themeLore = Object.freeze({
+    art: {
+        era: "Classical to modern eras",
+        origin: "Global museum collections",
+        material: "Mixed media",
+        category: "Curated artwork"
+    },
+    history: {
+        era: "Ancient to medieval periods",
+        origin: "Historical civilizations",
+        material: "Stone, bronze, clay, bone",
+        category: "Cultural artifact"
+    },
+    science: {
+        era: "Industrial to contemporary",
+        origin: "Labs and exploration programs",
+        material: "Metal, glass, composites",
+        category: "Scientific object"
+    }
+});
+
+const artifactLoreByName = Object.freeze({
+    "Ancient Statue": { era: "Classical antiquity", origin: "Mediterranean region", material: "Marble and limestone", category: "Sculpture" },
+    "Ceramic Vase": { era: "Ancient era", origin: "Greek and Near Eastern workshops", material: "Fired clay", category: "Pottery" },
+    "Golden Mask": { era: "Late Bronze Age", origin: "Ancient Egypt", material: "Gold and glass inlay", category: "Ceremonial object" },
+    "Ancient Map": { era: "Early classical era", origin: "Mesopotamia", material: "Clay tablet and pigment", category: "Manuscript" },
+    "Medieval Armor": { era: "High medieval period", origin: "Western Europe", material: "Forged steel and leather", category: "Armor" },
+    "Dinosaur Skeleton": { era: "Late Cretaceous", origin: "North American fossil beds", material: "Fossilized bone", category: "Fossil" },
+    "Mammoth Tusk": { era: "Pleistocene Ice Age", origin: "Eurasian steppe", material: "Ivory", category: "Fossil" },
+    "Ammonite Fossil": { era: "Jurassic period", origin: "Marine sedimentary layers", material: "Calcified shell", category: "Fossil" },
+    "Tribal Mask": { era: "Early modern period", origin: "West and Central Africa", material: "Carved wood and pigment", category: "Ceremonial object" },
+    "Obsidian Spear": { era: "Neolithic era", origin: "Mesoamerica", material: "Volcanic glass", category: "Ancient tool" },
+    "Ancient Coin": { era: "Classical period", origin: "Lydian and Greek city-states", material: "Electrum or bronze", category: "Coin" },
+    "Shark Tooth": { era: "Miocene epoch", origin: "Coastal fossil strata", material: "Mineralized dentin", category: "Fossil" }
+});
+
 let currentTheme = "art";
 const DEFAULT_ROOM_ID = "DEMO42";
 
@@ -168,6 +204,8 @@ const DOM = {
     successStreakBonus: document.getElementById("success-streak-bonus"),
     successBadge: document.getElementById("success-badge"),
     closeSuccessModal: document.getElementById("close-success-modal"),
+    successVariant: document.getElementById("success-variant"),
+    successRewardLine: document.getElementById("success-reward-line"),
     badgeToast: document.getElementById("badge-toast"),
     rankMoveBanner: document.getElementById("rank-move-banner"),
     difficultyMode: document.getElementById("difficulty-mode"),
@@ -183,7 +221,23 @@ const DOM = {
     scanGuidance: document.getElementById("scan-guidance"),
     confidenceFill: document.getElementById("confidence-fill"),
     cardStatusLabel: document.getElementById("card-status-label"),
-    nextBestTile: document.getElementById("next-best-tile")
+    nextBestTile: document.getElementById("next-best-tile"),
+    boardStatusPill: document.getElementById("board-status-pill"),
+    boardCelebrationBanner: document.getElementById("board-celebration-banner"),
+    totalProgressWrap: document.getElementById("total-progress-wrap"),
+    nextObjective: document.getElementById("next-objective"),
+    lineProgressCount: document.getElementById("line-progress-count"),
+    streakIndicator: document.getElementById("streak-indicator"),
+    roomProgressFill: document.getElementById("room-progress-fill"),
+    roomProgressValue: document.getElementById("room-progress-value"),
+    scanStatePill: document.getElementById("scan-state-pill"),
+    badgeGallery: document.getElementById("badge-gallery"),
+    badgeCountPill: document.getElementById("badge-count-pill"),
+    goalCards: document.getElementById("goal-cards"),
+    replayModeCards: document.getElementById("replay-mode-cards"),
+    shareCardBtn: document.getElementById("share-card-btn"),
+    recapBadges: document.getElementById("recap-badges"),
+    victoryHighlight: document.getElementById("victory-highlight")
 };
 
 function playSound(freq, type = "sine", duration = 0.1, volume = 0.1) {
@@ -249,6 +303,15 @@ const tutorialSteps = [
     { icon: "📷", title: "Scan & Find", text: "Click 'AI SCAN' and point your camera at the real art piece. Our AI will identify it instantly!" }
 ];
 
+const replayModes = [
+    { title: "Daily Challenge", meta: "One curated run with bonus rewards" },
+    { title: "Themed Card", meta: "Play art-, history-, or science-focused boards" },
+    { title: "Family Mode", meta: "Friendly pacing and broad prompts" },
+    { title: "Speed Run", meta: "Beat the clock and chase cleaner scans" },
+    { title: "Streak Challenge", meta: "Keep every scan hot" },
+    { title: "Room Battle", meta: "Race live with your lobby" }
+];
+
 const GameManager = {
     setStatusMessage(message) {
         if (!DOM.statusMsg) return;
@@ -258,6 +321,132 @@ const GameManager = {
     setElementHidden(element, hidden) {
         if (!element) return;
         element.classList.toggle("hidden", hidden);
+    },
+
+    setScanState(state, label, tone = "ar") {
+        const overlay = DOM.scannerOverlay;
+        if (overlay) {
+            overlay.classList.remove(
+                "scan-state-scanning",
+                "scan-state-almost",
+                "scan-state-recognized",
+                "scan-state-hint-active",
+                "scan-state-low-confidence"
+            );
+            if (state) overlay.classList.add(`scan-state-${state}`);
+        }
+        if (DOM.scanStatePill) {
+            DOM.scanStatePill.className = `status-pill status-pill--${tone}`;
+            DOM.scanStatePill.textContent = label;
+        }
+    },
+
+    getArtifactStory(item) {
+        const themeDefaults = themeLore[currentTheme] || themeLore.art;
+        const byName = artifactLoreByName[item && item.name] || {};
+        return {
+            era: item && item.era ? item.era : (byName.era || themeDefaults.era),
+            origin: item && item.origin ? item.origin : (byName.origin || themeDefaults.origin),
+            material: item && item.material ? item.material : (byName.material || themeDefaults.material),
+            category: item && item.category ? item.category : (byName.category || themeDefaults.category)
+        };
+    },
+
+    getScanFallbackState(confidence) {
+        if (confidence >= 65) {
+            return {
+                state: "almost",
+                label: "Almost there",
+                tone: "accent",
+                guidance: "Almost there. Hold steady and center the artifact.",
+                statusMessage: "Almost there. Keep the frame stable and confirm once recognition improves."
+            };
+        }
+        if (confidence >= 50) {
+            return {
+                state: "low-confidence",
+                label: "Move closer",
+                tone: "warning",
+                guidance: "Move closer to the artifact so details fill the frame.",
+                statusMessage: "Move closer for a clearer match."
+            };
+        }
+        if (confidence >= 30) {
+            return {
+                state: "low-confidence",
+                label: "Too much glare",
+                tone: "danger",
+                guidance: "Too much glare detected. Tilt slightly to reduce reflections.",
+                statusMessage: "Glare is reducing confidence. Try another angle."
+            };
+        }
+        if (confidence >= 15) {
+            return {
+                state: "low-confidence",
+                label: "Try another angle",
+                tone: "danger",
+                guidance: "Try another angle and isolate a single artifact.",
+                statusMessage: "Try another angle and keep one artifact in view."
+            };
+        }
+        return {
+            state: "low-confidence",
+            label: "Not a match yet",
+            tone: "danger",
+            guidance: "Not a match yet. Reframe and scan another nearby artifact.",
+            statusMessage: "Not a match yet. Keep exploring the gallery."
+        };
+    },
+
+    renderCelebrationBanner(snapshot) {
+        if (!DOM.boardCelebrationBanner || !window.DesignSystem) return;
+        const hasFullCard = Boolean(snapshot.hasFullCard);
+        const lines = Number(snapshot.bingoLines.length || 0);
+        const streak = Number(snapshot.streak || 0);
+        DOM.boardCelebrationBanner.innerHTML = "";
+        if (!hasFullCard && lines < 1 && streak < 3) {
+            DOM.boardCelebrationBanner.classList.add("hidden");
+            return;
+        }
+        DOM.boardCelebrationBanner.classList.remove("hidden");
+        let title = "Momentum building";
+        let text = "Keep scanning to lock your next line.";
+        if (lines >= 1) {
+            title = lines >= 2 ? "Multiple lines complete" : "Line complete";
+            text = "You are in striking distance of bingo.";
+        }
+        if (hasFullCard) {
+            title = "Full card complete";
+            text = "Every tile is confirmed. Enjoy your victory recap.";
+        } else if (streak >= 5) {
+            title = "Streak fire";
+            text = `Streak ${streak}. Keep the rhythm for bonus points.`;
+        }
+        const banner = window.DesignSystem.CelebrationBanner({ title, text, tone: hasFullCard ? "success" : "warning" });
+        DOM.boardCelebrationBanner.appendChild(banner);
+    },
+
+    getLineInsights(snapshot) {
+        const size = gameState.settings.cardSize;
+        const completedTiles = new Set(snapshot.completedTiles || []);
+        const patterns = window.BingoRules ? window.BingoRules.computeWinPatterns(size) : [];
+        const lineCompleteTiles = new Set();
+        const lineNearTiles = new Set();
+        const oneAwayTiles = new Set();
+        patterns.forEach((pattern) => {
+            const matchedCount = pattern.filter((tileId) => completedTiles.has(tileId)).length;
+            if (matchedCount === pattern.length) {
+                pattern.forEach((tileId) => lineCompleteTiles.add(tileId));
+                return;
+            }
+            if (matchedCount === pattern.length - 1) {
+                pattern.forEach((tileId) => {
+                    if (!completedTiles.has(tileId)) oneAwayTiles.add(tileId);
+                    else lineNearTiles.add(tileId);
+                });
+            }
+        });
+        return { lineCompleteTiles, lineNearTiles, oneAwayTiles };
     },
 
     getGamificationStorageKey() {
@@ -367,21 +556,69 @@ const GameManager = {
                 ? `Next best tile: #${snapshot.nextBestTile}`
                 : "Next best tile: any";
         }
+        this.renderBoardProgress(snapshot, ratio);
+        this.renderCelebrationBanner(snapshot);
+        this.renderGoalCards(snapshot);
+        this.renderReplayModeCards();
         this.renderBadgePreviews(snapshot.badges);
+        this.renderBadgeGallery(snapshot.badges);
         this.renderProfileStats(snapshot);
-        this.updateBoardTileStates(snapshot.tileStates || []);
+        this.updateBoardTileStates(snapshot);
         this.loadLeaderboard();
     },
 
-    updateBoardTileStates(tileStates) {
-        if (!Array.isArray(tileStates)) return;
-        const stateByTile = new Map(tileStates.map((tile) => [Number(tile.tileId), tile.state]));
+    updateBoardTileStates(snapshot) {
+        if (!snapshot || !Array.isArray(snapshot.tileStates)) return;
+        const stateByTile = new Map(snapshot.tileStates.map((tile) => [Number(tile.tileId), tile.state]));
+        const completedTiles = new Set(snapshot.completedTiles || []);
+        const lineInsights = this.getLineInsights(snapshot);
+        const isFullCard = Boolean(snapshot.hasFullCard);
         document.querySelectorAll(".cell").forEach((cell) => {
             const tileId = Number(cell.dataset.tileIndex);
             const state = stateByTile.get(tileId) || "locked";
             cell.dataset.state = state;
             cell.classList.toggle("found", state === "matched");
+            cell.classList.toggle("state-bonus", state === "bonus");
+            cell.classList.toggle("state-confirmed", state === "matched");
+            cell.classList.toggle("state-one-away", lineInsights.oneAwayTiles.has(tileId));
+            cell.classList.toggle("state-line-complete", lineInsights.lineCompleteTiles.has(tileId));
+            cell.classList.toggle("state-line-near", lineInsights.lineNearTiles.has(tileId));
+            cell.classList.toggle("state-full-card", isFullCard && completedTiles.has(tileId));
         });
+    },
+
+    renderBoardProgress(snapshot, ratio) {
+        if (!window.DesignSystem) return;
+        const totalTiles = gameState.settings.cardSize * gameState.settings.cardSize;
+        const completedTiles = Number(snapshot.completedTiles.length || 0);
+        const lineCount = Number(snapshot.bingoLines.length || 0);
+        const tone = snapshot.hasFullCard ? "success" : (lineCount > 0 ? "warning" : "neutral");
+        if (DOM.totalProgressWrap) {
+            DOM.totalProgressWrap.innerHTML = "";
+            const bar = window.DesignSystem.ProgressBar({
+                label: `${completedTiles}/${totalTiles} tiles`,
+                value: completedTiles,
+                max: totalTiles,
+                tone: snapshot.hasFullCard ? "success" : "warning"
+            });
+            DOM.totalProgressWrap.appendChild(bar);
+        }
+        if (DOM.boardStatusPill) {
+            DOM.boardStatusPill.className = `status-pill status-pill--${tone}`;
+            DOM.boardStatusPill.textContent = String(snapshot.completionState || "no_line").replaceAll("_", " ");
+        }
+        if (DOM.lineProgressCount) DOM.lineProgressCount.textContent = String(lineCount);
+        if (DOM.streakIndicator) DOM.streakIndicator.textContent = String(snapshot.streak || 0);
+        if (DOM.nextObjective) {
+            const objective = snapshot.hasFullCard
+                ? "Next objective: Celebrate and share your recap"
+                : snapshot.nextBestTile
+                    ? `Next objective: Target tile #${snapshot.nextBestTile}`
+                    : "Next objective: Start a line";
+            DOM.nextObjective.textContent = objective;
+        }
+        if (DOM.roomProgressFill) DOM.roomProgressFill.style.width = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+        if (DOM.roomProgressValue) DOM.roomProgressValue.textContent = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
     },
 
     renderBadgePreviews(badges) {
@@ -397,6 +634,72 @@ const GameManager = {
             badgeEl.textContent = `${badge.icon} ${badge.name}`;
             DOM.badgePreviewList.appendChild(badgeEl);
         });
+    },
+
+    renderBadgeGallery(badges) {
+        if (!DOM.badgeGallery) return;
+        DOM.badgeGallery.innerHTML = "";
+        const defs = (window.WinBadges && Array.isArray(window.WinBadges.BADGES)) ? window.WinBadges.BADGES : [];
+        const earned = new Set((badges || []).map((badge) => badge.id));
+        const source = defs.length ? defs : (badges || []);
+        if (!source.length) {
+            DOM.badgeGallery.innerHTML = '<div class="goal-card"><p class="goal-card__title">No badges yet</p><p class="goal-card__meta">Complete scans to unlock your shelf.</p></div>';
+            return;
+        }
+        source.slice(0, 9).forEach((badgeDef) => {
+            const icon = badgeDef.icon && badgeDef.icon.length <= 2 ? badgeDef.icon : "🏅";
+            const title = badgeDef.name || badgeDef.id || "Badge";
+            const rarity = badgeDef.rarity || "common";
+            const unlocked = earned.has(badgeDef.id);
+            const node = window.DesignSystem && window.DesignSystem.BadgeIcon
+                ? window.DesignSystem.BadgeIcon({ icon, rarity, label: `${title}${unlocked ? "" : " (locked)"}` })
+                : document.createElement("div");
+            if (!unlocked) node.style.opacity = "0.55";
+            DOM.badgeGallery.appendChild(node);
+        });
+        if (DOM.badgeCountPill) {
+            DOM.badgeCountPill.textContent = `${earned.size} unlocked`;
+        }
+    },
+
+    renderGoalCards(snapshot) {
+        if (!DOM.goalCards) return;
+        const completedTiles = Number(snapshot.completedTiles.length || 0);
+        const totalTiles = gameState.settings.cardSize * gameState.settings.cardSize;
+        const goals = [
+            {
+                title: "Finish one line",
+                progress: `${snapshot.bingoLines.length > 0 ? "Done" : "In progress"}`
+            },
+            {
+                title: "Keep a 5-scan streak",
+                progress: `${Math.min(5, Number(snapshot.streak || 0))}/5`
+            },
+            {
+                title: "Beat your last score",
+                progress: `${snapshot.points} pts this round`
+            },
+            {
+                title: "Complete full card",
+                progress: `${completedTiles}/${totalTiles}`
+            }
+        ];
+        DOM.goalCards.innerHTML = goals.map((goal) => `
+            <div class="goal-card">
+                <p class="goal-card__title">${goal.title}</p>
+                <p class="goal-card__meta">${goal.progress}</p>
+            </div>
+        `).join("");
+    },
+
+    renderReplayModeCards() {
+        if (!DOM.replayModeCards) return;
+        DOM.replayModeCards.innerHTML = replayModes.map((mode) => `
+            <div class="replay-card">
+                <p class="replay-card__title">${mode.title}</p>
+                <p class="replay-card__meta">${mode.meta}</p>
+            </div>
+        `).join("");
     },
 
     renderProfileStats(snapshot) {
@@ -425,15 +728,42 @@ const GameManager = {
 
     showScanSuccessModal(item, scoringResult) {
         if (!DOM.successModal) return;
+        DOM.successModal.classList.remove("success-line", "success-bingo", "success-full-card");
+        const details = this.getArtifactStory(item);
         if (DOM.successArtwork) DOM.successArtwork.textContent = item.name;
-        if (DOM.successArtist) DOM.successArtist.textContent = item.artist || "Unknown artist";
+        if (DOM.successArtist) DOM.successArtist.textContent = `${details.era} • ${details.origin}`;
         if (DOM.successPoints) DOM.successPoints.textContent = `+${scoringResult.pointsEarned}`;
         if (DOM.successStreakBonus) DOM.successStreakBonus.textContent = `+${scoringResult.streakBonus}`;
+        const isBonusArtifact = item.category === "Bonus artifact" || item.rarity === "rare" || item.rarity === "legendary";
+        let variant = "Artifact found";
+        let rewardLine = `Material: ${details.material} • ${details.category}`;
+        if (scoringResult.fullCardBonus > 0) {
+            variant = "Full card completed";
+            rewardLine = "Massive bonus! Full card celebration unlocked.";
+            DOM.successModal.classList.add("success-full-card");
+        } else if (scoringResult.completionState === "blackout" || scoringResult.hasFullCard) {
+            variant = "Bingo completed";
+            rewardLine = "Bingo achieved. Recap and rewards are ready.";
+            DOM.successModal.classList.add("success-bingo");
+        } else if (scoringResult.firstLineBonus > 0) {
+            variant = "Line completed";
+            rewardLine = "Line bonus earned. You are closing in on bingo.";
+            DOM.successModal.classList.add("success-line");
+        } else if (isBonusArtifact) {
+            variant = "Bonus artifact found";
+            rewardLine = `Rare find secured. ${details.material} from ${details.origin}.`;
+        } else if ((scoringResult.streak || 0) >= 3) {
+            variant = "Streak continued";
+            rewardLine = `Streak x${scoringResult.streak}. Keep momentum for bigger rewards.`;
+        }
+        if (DOM.successVariant) DOM.successVariant.textContent = variant;
+        if (DOM.successRewardLine) DOM.successRewardLine.textContent = rewardLine;
         if (DOM.successBadge) {
             const firstBadge = scoringResult.unlockedBadges && scoringResult.unlockedBadges[0];
             if (firstBadge) {
                 DOM.successBadge.classList.remove("hidden");
                 DOM.successBadge.innerHTML = `<p class="text-xs text-amber-200">BADGE UNLOCKED</p><p class="text-amber-100 font-bold">${firstBadge.icon} ${firstBadge.name}</p>`;
+                if (DOM.successVariant) DOM.successVariant.textContent = "Badge unlocked";
             } else {
                 DOM.successBadge.classList.add("hidden");
                 DOM.successBadge.innerHTML = "";
@@ -443,7 +773,9 @@ const GameManager = {
     },
 
     hideScanSuccessModal() {
-        if (DOM.successModal) DOM.successModal.classList.add("hidden");
+        if (!DOM.successModal) return;
+        DOM.successModal.classList.add("hidden");
+        DOM.successModal.classList.remove("success-line", "success-bingo", "success-full-card");
     },
 
     showBadgeToast(badge) {
@@ -603,6 +935,8 @@ const GameManager = {
         }
         this.initGame();
         this.bindEvents();
+        this.renderReplayModeCards();
+        this.renderGoalCards({ completedTiles: [], bingoLines: [], streak: 0, points: 0 });
         this.initGamification();
         this.loadLeaderboard();
         if (!localStorage.getItem("museumBingoTutorialSeen")) {
@@ -687,10 +1021,17 @@ const GameManager = {
             const isCurrent = player.userId === gameState.currentUser.uid;
             const streak = Number(player.streak) || 0;
             const bingoStatus = String(player.bingoStatus || "no_line").replaceAll("_", " ");
-            item.className = `flex items-center justify-between p-3 glass-card ${isCurrent ? "bg-amber-400/10 border-amber-300/40" : "bg-white/5"}`;
+            const initials = (player.playerName || player.displayName || "P")
+                .split(" ")
+                .map((part) => part[0] || "")
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
+            item.className = `flex items-center justify-between p-3 glass-card ${isCurrent ? "bg-amber-400/10 border-amber-300/40 points-pop" : "bg-white/5"}`;
             item.innerHTML = `
                 <div class="flex items-center gap-3">
                     <span class="text-amber-300 font-bold">#${i + 1}</span>
+                    <div class="avatar-ring ${isCurrent ? "avatar-ring--active" : ""}"><span>${initials}</span></div>
                     <span class="text-white">${player.playerName || player.displayName || "Player"}</span>
                     ${isCurrent ? '<span class="text-[10px] text-green-300">● NOW PLAYING</span>' : ""}
                 </div>
@@ -754,7 +1095,7 @@ const GameManager = {
         DOM.board.className = `col-span-3 grid ${size === 4 ? "grid-cols-4 gap-4" : "grid-cols-3 gap-6"} ${gameState.settings.compactMode ? "compact-mode" : ""}`;
         items.forEach((item, index) => {
             const cell = document.createElement("div");
-            cell.className = "cell";
+            cell.className = "cell cell-enter";
             cell.dataset.id = String(item.id);
             cell.dataset.tileIndex = String(index + 1);
             const isFound = gameState.foundItems.has(item.id);
@@ -762,6 +1103,7 @@ const GameManager = {
             cell.innerHTML = `<span>${item.emoji || "🧩"}</span><div class="cell-name">${item.name}</div><div class="tile-meta">#${index + 1}</div>`;
             cell.onclick = () => this.selectCell(cell, item);
             DOM.board.appendChild(cell);
+            setTimeout(() => cell.classList.remove("cell-enter"), 320);
         });
         this.updateStats();
         this.applyThemeColors(theme.color);
@@ -892,6 +1234,22 @@ const GameManager = {
         if (DOM.tutorialNextBtn) DOM.tutorialNextBtn.onclick = this.nextTutorialStep.bind(this);
         if (DOM.tutorialSkipBtn) DOM.tutorialSkipBtn.onclick = this.closeTutorial.bind(this);
         if (DOM.playAgainBtn) DOM.playAgainBtn.onclick = () => location.reload();
+        if (DOM.shareCardBtn) {
+            DOM.shareCardBtn.onclick = async () => {
+                const text = gameState.sessionRecap && gameState.sessionRecap.shareText
+                    ? gameState.sessionRecap.shareText
+                    : `I scored ${DOM.pointsTotal ? DOM.pointsTotal.textContent : 0} in Museum.Bingo.`;
+                try {
+                    if (navigator.share) await navigator.share({ title: "Museum Bingo", text });
+                    else if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(text);
+                        this.setStatusMessage("Share text copied to clipboard.");
+                    }
+                } catch (err) {
+                    console.warn("Share action was cancelled or unavailable:", err);
+                }
+            };
+        }
         if (DOM.heatVisionBtn) DOM.heatVisionBtn.onclick = this.toggleHeatVision.bind(this);
         if (DOM.closeSuccessModal) DOM.closeSuccessModal.onclick = this.hideScanSuccessModal.bind(this);
         window.addEventListener("museum-bingo-near-match", (event) => {
@@ -899,6 +1257,7 @@ const GameManager = {
             if (now - gameState.nearMatchPlayedAt < 1200) return;
             gameState.nearMatchPlayedAt = now;
             playSound(720, "triangle", 0.09, 0.06);
+            this.setScanState("almost", "Almost recognized", "accent");
             if (DOM.scanGuidance && event && event.detail && Number.isFinite(event.detail.confidence)) {
                 DOM.scanGuidance.textContent = `Near match (${event.detail.confidence}%). Hold steady and confirm when ready.`;
             }
@@ -928,6 +1287,7 @@ const GameManager = {
     showNextRiddle() {
         if (!gameState.selectedCell) return;
         gameState.usedHintSinceLastScan = true;
+        this.setScanState("hint-active", "Hint active", "warning");
         if (gameState.gamification) {
             gameState.gamification.onHintUsed({
                 tileId: Number(gameState.selectedCell.element.dataset.tileIndex || 0),
@@ -947,6 +1307,7 @@ const GameManager = {
         }
         gameState.totalAttempts++;
         gameState.scanStartedAt = Date.now();
+        this.setScanState("scanning", "Scanning", "ar");
         if (DOM.scanGuidance) DOM.scanGuidance.textContent = "Scanning... hold steady and frame the artwork.";
         if (DOM.confidenceFill) DOM.confidenceFill.style.width = "0%";
         this.setElementHidden(DOM.scannerOverlay, false);
@@ -993,18 +1354,23 @@ const GameManager = {
             if (!Number.isFinite(confidence)) throw new Error("AI detection returned invalid confidence");
             gameState.aiDetections += detectionCount;
             if (DOM.confidenceFill) DOM.confidenceFill.style.width = `${Math.floor(Math.max(0, Math.min(confidence, 100)))}%`;
+            if (DOM.confidence) DOM.confidence.textContent = `${Math.floor(Math.max(0, Math.min(confidence, 100)))}%`;
             if (confidence >= 80) this.showDetectionResult();
             else {
                 const tileIndex = Number(gameState.selectedCell && gameState.selectedCell.element && gameState.selectedCell.element.dataset.tileIndex || 0);
                 if (gameState.gamification) gameState.gamification.onScanFailed({ reason: "confidence_low", confidence, tileId: tileIndex });
-                this.setStatusMessage("Still searching. Try moving closer, reducing glare, or using a different angle.");
-                if (DOM.scanGuidance) DOM.scanGuidance.textContent = "Low confidence: move closer and reduce reflections.";
+                const fallback = this.getScanFallbackState(confidence);
+                this.setScanState(fallback.state, fallback.label, fallback.tone);
+                this.setStatusMessage(fallback.statusMessage);
+                if (DOM.scanGuidance) DOM.scanGuidance.textContent = fallback.guidance;
                 this.closeScannerModal();
             }
         } catch (err) {
             const tileIndex = Number(gameState.selectedCell && gameState.selectedCell.element && gameState.selectedCell.element.dataset.tileIndex || 0);
             if (gameState.gamification) gameState.gamification.onScanFailed({ reason: "scanner_error", tileId: tileIndex });
             console.error("AI detection failed unexpectedly:", err);
+            this.setScanState("low-confidence", "Scanner error", "danger");
+            if (DOM.scanGuidance) DOM.scanGuidance.textContent = "Scanner error. Try another angle or restart scan.";
             this.setStatusMessage("⚠️ Scanner unavailable right now. Please try again.");
             this.closeScannerModal();
         }
@@ -1013,10 +1379,12 @@ const GameManager = {
     showDetectionResult() {
         if (!gameState.selectedCell || !gameState.selectedCell.item) return;
         const item = gameState.selectedCell.item;
+        const details = this.getArtifactStory(item);
+        this.setScanState("recognized", "Recognized", "success");
         if (DOM.artInfo) DOM.artInfo.classList.remove("hidden");
         if (DOM.artEmoji) DOM.artEmoji.textContent = item.emoji;
         if (DOM.artName) DOM.artName.textContent = item.name;
-        if (DOM.artFact) DOM.artFact.textContent = item.fact;
+        if (DOM.artFact) DOM.artFact.textContent = `${item.fact} Era: ${details.era}. Origin: ${details.origin}. Material: ${details.material}.`;
         if (DOM.confirmBtn) DOM.confirmBtn.classList.remove("hidden");
         if (DOM.scanGuidance) DOM.scanGuidance.textContent = "Match found. Confirm to validate this tile.";
         if (typeof speakText === "function") speakText(`Found ${item.name}! ${item.fact}`, 0.85);
@@ -1121,6 +1489,7 @@ const GameManager = {
 
     closeScannerModal() {
         this.setElementHidden(DOM.scannerOverlay, true);
+        this.setScanState("", "Scanning", "ar");
         this.stopCameraStream();
     },
 
@@ -1201,8 +1570,22 @@ const GameManager = {
             <div class="flex justify-between mb-3 text-amber-100"><span>📊 Scans:</span><strong class="text-amber-300">${gameState.successfulScans}/${gameState.totalAttempts}</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>🏅 Points:</span><strong class="text-amber-300">${points}</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>🤖 AI Detections:</span><strong class="text-amber-300">${gameState.aiDetections}</strong></div>
-            <div class="flex justify-between text-amber-100"><span>🎯 Accuracy:</span><strong class="text-amber-300">${scanAccuracy}%</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>🎯 Accuracy:</span><strong class="text-amber-300">${scanAccuracy}%</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>📈 Lines:</span><strong class="text-amber-300">${snapshot ? snapshot.bingoLines.length : 0}</strong></div>
+            <div class="flex justify-between text-amber-100"><span>🏁 Room rank:</span><strong class="text-amber-300">#${snapshot && snapshot.rank ? snapshot.rank : "-"}</strong></div>
         `;
+        if (DOM.victoryHighlight) {
+            const isFull = Boolean(snapshot && snapshot.hasFullCard);
+            DOM.victoryHighlight.textContent = isFull ? "Full card complete" : "Bingo complete";
+            DOM.victoryHighlight.className = `status-pill ${isFull ? "status-pill--success" : "status-pill--warning"} mb-4 inline-flex`;
+        }
+        if (DOM.recapBadges) {
+            DOM.recapBadges.innerHTML = "";
+            const recentBadges = snapshot && Array.isArray(snapshot.badges) ? snapshot.badges.slice(-4) : [];
+            DOM.recapBadges.innerHTML = recentBadges.length
+                ? `<p class="text-xs text-amber-200 mb-2">Unlocked this session</p><div class="flex flex-wrap gap-2">${recentBadges.map((badge) => `<span class="glass-badge text-xs bg-white/5">${badge.icon} ${badge.name}</span>`).join("")}</div>`
+                : '<p class="text-xs text-amber-100">No badges unlocked this round.</p>';
+        }
         DOM.winModal.classList.remove("hidden");
         if (typeof speakText === "function") speakText("Congratulations! You won the museum bingo game!", 1);
     },
