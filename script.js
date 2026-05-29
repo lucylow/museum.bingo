@@ -524,6 +524,31 @@ const GameManager = {
         }
     },
 
+    toggleHeatVision: function() {
+        gameState.isHeatVisionActive = !gameState.isHeatVisionActive;
+        if (DOM.heatVisionBtn) {
+            DOM.heatVisionBtn.classList.toggle("bg-orange-500", gameState.isHeatVisionActive);
+            DOM.heatVisionBtn.textContent = gameState.isHeatVisionActive ? "🔥 HEAT VISION ON" : "🔍 HEAT VISION";
+        }
+
+        if (gameState.isHeatVisionActive) {
+            speakText("Heat vision activated. Look for the orange glow.");
+            this.startHeatVisionLoop();
+        } else {
+            if (DOM.cameraFeed) DOM.cameraFeed.style.filter = "none";
+            if (DOM.vrHud) DOM.vrHud.classList.add("hidden");
+        }
+    },
+
+    startHeatVisionLoop: function() {
+        if (!gameState.isHeatVisionActive) return;
+
+        if (DOM.cameraFeed) DOM.cameraFeed.style.filter = "sepia(1) saturate(5) hue-rotate(-50deg)";
+        if (DOM.vrHud) DOM.vrHud.classList.remove("hidden");
+
+        requestAnimationFrame(this.startHeatVisionLoop.bind(this));
+    },
+
     cleanupCamera: function() {
         if (gameState.cameraStream) {
             gameState.cameraStream.getTracks().forEach(track => track.stop());
@@ -538,27 +563,6 @@ window.addEventListener('load', () => {
 });
 
 // Expose toggleHeatVision globally for onclick in index.html
-    toggleHeatVision: function() {
-        gameState.isHeatVisionActive = !gameState.isHeatVisionActive;
-        if (DOM.heatVisionBtn) {
-            DOM.heatVisionBtn.classList.toggle("bg-orange-500", gameState.isHeatVisionActive);
-            DOM.heatVisionBtn.textContent = gameState.isHeatVisionActive ? "🔥 HEAT VISION ON" : "🔍 HEAT VISION";
-        }
-        
-        if (gameState.isHeatVisionActive) {
-            speakText("Heat vision activated. Look for the orange glow.");
-            this.startHeatVisionLoop();
-        } else {
-            if (DOM.cameraFeed) DOM.cameraFeed.style.filter = "none";
-            if (DOM.vrHud) DOM.vrHud.classList.add("hidden");
-        }
-    },
-
-    startHeatVisionLoop: function() {
-        if (!gameState.isHeatVisionActive) return;
-        
-        if (DOM.cameraFeed) DOM.cameraFeed.style.filter = "sepia(1) saturate(5) hue-rotate(-50deg)";
-        if (DOM.vrHud) DOM.vrHud.classList.remove("hidden");
-        
-        requestAnimationFrame(this.startHeatVisionLoop.bind(this));
-    }
+window.toggleHeatVision = function() {
+    GameManager.toggleHeatVision();
+};
