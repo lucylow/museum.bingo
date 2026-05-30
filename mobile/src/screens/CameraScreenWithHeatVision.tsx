@@ -13,6 +13,7 @@ import { useHeatVision } from '../hooks/useHeatVision';
 import { useValidationFeedback } from '../hooks/useValidationFeedback';
 import { gameplayStatsTracker } from '../stats/tracker';
 import { appTheme } from '../theme/tokens';
+import { SpatialCameraHud } from '../components/immersive/SpatialCameraHud';
 
 interface HeatVisionArtwork {
   id: string;
@@ -32,6 +33,7 @@ interface Props {
   userId?: string;
   sessionId?: string;
   roomId?: string | null;
+  onClose?: () => void;
 }
 
 export const CameraScreenWithHeatVision: React.FC<Props> = ({
@@ -41,6 +43,7 @@ export const CameraScreenWithHeatVision: React.FC<Props> = ({
   userId,
   sessionId,
   roomId = null,
+  onClose,
 }) => {
   const device = useCameraDevice('back');
   const recognizerRef = useRef(new ArtworkRecognizer());
@@ -170,6 +173,7 @@ export const CameraScreenWithHeatVision: React.FC<Props> = ({
           <View style={[styles.scanLine, scanState === 'almost' && styles.scanLineWarm, scanState === 'matched' && styles.scanLineSuccess]} />
         </View>
       </View>
+      <SpatialCameraHud confidence={confidence} scanState={scanState} />
 
       <SkiaCompassOverlay
         visible={heatVisionActive && Boolean(currentTarget)}
@@ -227,6 +231,11 @@ export const CameraScreenWithHeatVision: React.FC<Props> = ({
       >
         <Text style={styles.buttonText}>{heatVisionActive ? 'HEAT VISION ON' : 'HEAT VISION OFF'}</Text>
       </TouchableOpacity>
+      {onClose ? (
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <Text style={styles.closeText}>Exit scan</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 };
@@ -277,6 +286,21 @@ const styles = StyleSheet.create({
     ...appTheme.elevation.floating,
   },
   buttonText: { color: appTheme.colors.textPrimary, fontWeight: '700', letterSpacing: 0.4 },
+  closeButton: {
+    position: 'absolute',
+    top: 24,
+    right: 16,
+    borderRadius: appTheme.radius.pill,
+    backgroundColor: appTheme.colors.overlayDark,
+    borderWidth: 1,
+    borderColor: appTheme.colors.borderSoft,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  closeText: {
+    color: appTheme.colors.textPrimary,
+    fontWeight: '700',
+  },
   targetInfo: {
     position: 'absolute',
     bottom: 174,

@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../api/client';
 import { useLocation } from '../context/LocationContext';
 import { RootStackParamList } from '../navigation/types';
 import { museumDetection } from '../services/MuseumDetectionService';
+import { useMonetization } from '../hooks/useMonetization';
+import { canAccessUnlimitedMuseums } from '../monetization/gates';
 import { MockImageFrame } from '../components/mock/MockImageFrame';
 import { MockEmptyState } from '../components/mock/MockEmptyState';
 import { MOCK_EMPTY_STATES, MOCK_MUSEUMS } from '../mock/mockVisualContent';
@@ -21,7 +23,8 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MuseumSelec
 
 export const MuseumSelectorScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { userLocation } = useLocation();
+  const { userLocation, currentMuseum } = useLocation();
+  const { state: monetizationState } = useMonetization();
   const [museums, setMuseums] = useState<Museum[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,6 +60,19 @@ export const MuseumSelectorScreen: React.FC = () => {
   };
 
   const handleSelectMuseum = (museum: Museum) => {
+    const unlimitedGate = canAccessUnlimitedMuseums(monetizationState);
+    if (
+      !unlimitedGate.allowed &&
+      currentMuseum &&
+      currentMuseum.placeId !== museum.placeId
+    ) {
+      Alert.alert('Free tier museum limit', `${unlimitedGate.reason} Upgrade if you want to switch across more museums in one period.`, [
+        { text: 'Keep current museum', style: 'cancel' },
+        { text: 'View plans', onPress: () => navigation.navigate('Subscription') },
+      ]);
+      return;
+    }
+
     museumDetection.setManualMuseumSelection({
       placeId: museum.placeId,
       name: museum.name,

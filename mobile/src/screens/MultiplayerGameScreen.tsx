@@ -15,6 +15,8 @@ import { useMultiplayerStore } from '../store/multiplayerStore';
 import { appTheme } from '../theme/tokens';
 import { MOCK_EVENT_THEMES } from '../mock/mockVisualContent';
 import { MockImageFrame } from '../components/mock/MockImageFrame';
+import { MultiplayerSpatialRoom } from '../components/immersive/MultiplayerSpatialRoom';
+import { useImmersiveSettingsStore } from '../store/immersiveSettingsStore';
 
 type PlayerState = {
   userId: string;
@@ -48,6 +50,8 @@ const MultiplayerGameScreenContent: React.FC<GameProps> = ({ route, navigation }
   const [rank, setRank] = useState<number | null>(null);
   const [showRecap, setShowRecap] = useState(false);
   const [sessionId] = useState(() => `mp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const [spatialRoomMode, setSpatialRoomMode] = useState(false);
+  const immersiveEnabled = useImmersiveSettingsStore((state) => state.settings.enabled);
 
   const completedTiles = useMultiplayerStore((state) => state.completedTiles);
   const setScore = useMultiplayerStore((state) => state.setScore);
@@ -239,6 +243,11 @@ const MultiplayerGameScreenContent: React.FC<GameProps> = ({ route, navigation }
         <Text style={styles.statusChip}>Players {Object.keys(players).length}</Text>
         <Text style={styles.statusChip}>Tiles {completedTiles.length}</Text>
         {rank ? <Text style={styles.statusChip}>Rank #{rank}</Text> : null}
+        {immersiveEnabled ? (
+          <Text style={styles.statusChip} onPress={() => setSpatialRoomMode((prev) => !prev)}>
+            {spatialRoomMode ? 'Spatial off' : 'Spatial on'}
+          </Text>
+        ) : null}
       </View>
       <View style={styles.bannerWrap}>
         <MockImageFrame
@@ -255,6 +264,9 @@ const MultiplayerGameScreenContent: React.FC<GameProps> = ({ route, navigation }
         onTileValidate={handleTileValidate}
         disabled={!gameStarted}
       />
+      {spatialRoomMode && user ? (
+        <MultiplayerSpatialRoom players={Object.values(players)} currentUserId={user.uid} />
+      ) : null}
       <LanguageSelector visible={showLanguageSelector} onClose={() => setShowLanguageSelector(false)} />
 
       {user && (

@@ -85,6 +85,12 @@ export const HomeScreen: React.FC = () => {
       {!locationPermissionGranted ? (
         <Text style={styles.permissionWarning}>Location permission required for auto-detection.</Text>
       ) : null}
+      <AppButton label="Membership and Rewards" onPress={() => navigation.navigate('Subscription')} variant="secondary" style={styles.membershipButton} />
+      <AppButton
+        label="Multiplayer Lobby"
+        onPress={() => navigation.navigate('Multiplayer', { museumId: currentMuseum?.placeId })}
+        variant="ghost"
+      />
       <AppButton label="Location Settings" onPress={() => navigation.navigate('LocationSettings')} variant="ghost" />
       <AppButton label="Immersive Settings" onPress={() => navigation.navigate('ImmersiveSettings')} variant="ghost" />
     </SafeAreaView>
@@ -123,5 +129,6 @@ const styles = StyleSheet.create({
   noMuseumText: { fontSize: appTheme.typography.body, color: appTheme.colors.textSecondary, marginBottom: appTheme.spacing.xs },
   coords: { fontSize: appTheme.typography.caption, color: appTheme.colors.textMuted, marginTop: appTheme.spacing.sm },
   refreshButton: { marginTop: appTheme.spacing.xs, width: '100%' },
+  membershipButton: { width: '100%', marginTop: appTheme.spacing.sm },
   permissionWarning: { marginTop: appTheme.spacing.md, color: appTheme.colors.accentDanger, fontSize: appTheme.typography.caption },
 });
