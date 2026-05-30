@@ -12,3 +12,10 @@ test('getTierFromPriceId returns null for unknown price', () => {
   const tier = SubscriptionService.getTierFromPriceId('price_unknown');
   assert.equal(tier, null);
 });
+
+test('monetization architecture exposes trust principles and products', () => {
+  const architecture = SubscriptionService.getMonetizationArchitecture();
+  assert.ok(architecture.plan.trustPrinciples.length > 0);
+  assert.ok(architecture.products.length > 0);
+  assert.ok(architecture.seasonPass.name.length > 0);
+});

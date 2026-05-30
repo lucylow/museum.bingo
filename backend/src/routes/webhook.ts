@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { FieldValue, db } from '../config/firebase';
 import { SubscriptionService } from '../services/subscriptionService';
 import { stripe } from '../stripe/config';
+import { trackRevenueEvent } from '../monetization/revenueEvents';
 
 const router = express.Router();
 
@@ -128,6 +129,18 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
     stripeSubscriptionId: subscriptionId,
     timestamp: FieldValue.serverTimestamp(),
   });
+
+  await trackRevenueEvent({
+    eventId: `stripe-checkout-${session.id}`,
+    userId,
+    eventType: 'subscription_purchased',
+    bucket: 'freemium_upgrade',
+    productId: tier || undefined,
+    amountCents: session.amount_total ?? undefined,
+    currency: session.currency?.toUpperCase(),
+    idempotencyKey: `stripe-checkout-${session.id}`,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
@@ -147,6 +160,16 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
     },
     { merge: true }
   );
+
+  await trackRevenueEvent({
+    eventId: `stripe-subscription-updated-${subscription.id}-${subscription.current_period_end}`,
+    userId,
+    eventType: 'plan_upgraded',
+    bucket: 'freemium_upgrade',
+    productId: status.tier || undefined,
+    idempotencyKey: `stripe-subscription-updated-${subscription.id}-${subscription.current_period_end}`,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
@@ -180,6 +203,22 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice): Promise<v
     currency: invoice.currency,
     timestamp: FieldValue.serverTimestamp(),
   });
+
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+  const userId = customerId ? await lookupUserIdByCustomerId(customerId) : null;
+  if (!userId) {
+    return;
+  }
+  await trackRevenueEvent({
+    eventId: `stripe-invoice-${invoice.id}`,
+    userId,
+    eventType: 'subscription_purchased',
+    bucket: 'freemium_upgrade',
+    amountCents: invoice.amount_paid,
+    currency: invoice.currency?.toUpperCase(),
+    idempotencyKey: `stripe-invoice-${invoice.id}`,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 async function getUserIdFromSubscription(subscription: Stripe.Subscription): Promise<string | null> {
@@ -200,6 +239,14 @@ async function getUserIdFromSubscription(subscription: Stripe.Subscription): Pro
   }
 
   return customer.metadata?.userId || null;
+}
+
+async function lookupUserIdByCustomerId(customerId: string): Promise<string | null> {
+  const usersSnapshot = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(1).get();
+  if (usersSnapshot.empty) {
+    return null;
+  }
+  return usersSnapshot.docs[0]?.id || null;
 }
 
 export default router;

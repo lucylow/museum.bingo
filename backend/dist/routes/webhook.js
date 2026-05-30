@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const firebase_1 = require("../config/firebase");
 const subscriptionService_1 = require("../services/subscriptionService");
 const config_1 = require("../stripe/config");
+const revenueEvents_1 = require("../monetization/revenueEvents");
 const router = express_1.default.Router();
 router.post('/stripe', express_1.default.raw({ type: 'application/json' }), async (req, res) => {
     const signature = req.headers['stripe-signature'];
@@ -105,6 +106,17 @@ async function handleCheckoutSessionCompleted(session) {
         stripeSubscriptionId: subscriptionId,
         timestamp: firebase_1.FieldValue.serverTimestamp(),
     });
+    await (0, revenueEvents_1.trackRevenueEvent)({
+        eventId: `stripe-checkout-${session.id}`,
+        userId,
+        eventType: 'subscription_purchased',
+        bucket: 'freemium_upgrade',
+        productId: tier || undefined,
+        amountCents: session.amount_total ?? undefined,
+        currency: session.currency?.toUpperCase(),
+        idempotencyKey: `stripe-checkout-${session.id}`,
+        createdAt: new Date().toISOString(),
+    });
 }
 async function handleSubscriptionUpdated(subscription) {
     const userId = await getUserIdFromSubscription(subscription);
@@ -119,6 +131,15 @@ async function handleSubscriptionUpdated(subscription) {
         currentPeriodEnd: status.expiresAt,
         updatedAt: firebase_1.FieldValue.serverTimestamp(),
     }, { merge: true });
+    await (0, revenueEvents_1.trackRevenueEvent)({
+        eventId: `stripe-subscription-updated-${subscription.id}-${subscription.current_period_end}`,
+        userId,
+        eventType: 'plan_upgraded',
+        bucket: 'freemium_upgrade',
+        productId: status.tier || undefined,
+        idempotencyKey: `stripe-subscription-updated-${subscription.id}-${subscription.current_period_end}`,
+        createdAt: new Date().toISOString(),
+    });
 }
 async function handleSubscriptionDeleted(subscription) {
     const userId = await getUserIdFromSubscription(subscription);
@@ -144,6 +165,21 @@ async function handleInvoicePaymentSucceeded(invoice) {
         currency: invoice.currency,
         timestamp: firebase_1.FieldValue.serverTimestamp(),
     });
+    const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+    const userId = customerId ? await lookupUserIdByCustomerId(customerId) : null;
+    if (!userId) {
+        return;
+    }
+    await (0, revenueEvents_1.trackRevenueEvent)({
+        eventId: `stripe-invoice-${invoice.id}`,
+        userId,
+        eventType: 'subscription_purchased',
+        bucket: 'freemium_upgrade',
+        amountCents: invoice.amount_paid,
+        currency: invoice.currency?.toUpperCase(),
+        idempotencyKey: `stripe-invoice-${invoice.id}`,
+        createdAt: new Date().toISOString(),
+    });
 }
 async function getUserIdFromSubscription(subscription) {
     const fromMetadata = subscription.metadata?.userId;
@@ -159,5 +195,12 @@ async function getUserIdFromSubscription(subscription) {
         return null;
     }
     return customer.metadata?.userId || null;
+}
+async function lookupUserIdByCustomerId(customerId) {
+    const usersSnapshot = await firebase_1.db.collection('users').where('stripeCustomerId', '==', customerId).limit(1).get();
+    if (usersSnapshot.empty) {
+        return null;
+    }
+    return usersSnapshot.docs[0]?.id || null;
 }
 exports.default = router;
