@@ -1,6 +1,17 @@
 import Stripe from 'stripe';
 import { db } from '../config/firebase';
 import { PRICE_IDS, stripe } from '../stripe/config';
+import {
+  ACTIVE_SEASON_PASS,
+  MONETIZATION_BUNDLES,
+  MONETIZATION_COUPONS,
+  MONETIZATION_OFFERS,
+  MONETIZATION_PLAN,
+  PURCHASE_PRODUCTS,
+  SPONSORED_CHALLENGES,
+} from '../monetization/catalog';
+import { resolveEntitlements, resolveTrialState, toEntitlementRecord } from '../monetization/entitlements';
+import { TrialState } from '../monetization/types';
 
 type SubscriptionStatus = {
   isActive: boolean;
@@ -39,6 +50,11 @@ type MonetizationState = {
   entitlements: MonetizationEntitlements;
   activeAddOns: string[];
   partnerSubscriptionLevel: PartnerSubscriptionLevel;
+  trialState: TrialState;
+  seasonPass: typeof ACTIVE_SEASON_PASS;
+  offers: typeof MONETIZATION_OFFERS;
+  bundles: typeof MONETIZATION_BUNDLES;
+  sponsoredChallenges: typeof SPONSORED_CHALLENGES;
   suggestedUpsells: string[];
 };
 
@@ -116,6 +132,8 @@ export class SubscriptionService {
           monetizationAddOns?: string[];
           seasonalPassActive?: boolean;
           partnerSubscriptionLevel?: PartnerSubscriptionLevel;
+          trialState?: Partial<TrialState>;
+          promoCodes?: string[];
         }
       | undefined;
 
@@ -129,20 +147,43 @@ export class SubscriptionService {
     const activeAddOns = Array.isArray(userData?.monetizationAddOns) ? userData?.monetizationAddOns : [];
     const partnerSubscriptionLevel: PartnerSubscriptionLevel = userData?.partnerSubscriptionLevel || 'none';
     const seasonalPassActive = Boolean(userData?.seasonalPassActive) || subscription.tier === 'PREMIUM_YEARLY';
+    const trialState = resolveTrialState(userData?.trialState || null);
+    const promoCodes = Array.isArray(userData?.promoCodes) ? userData?.promoCodes : [];
 
-    const entitlements = this.buildMonetizationEntitlements(
-      subscription,
+    const normalizedEntitlements = resolveEntitlements({
+      subscriptionTier: this.normalizeTierName(subscription.tier),
       activeAddOns,
       seasonalPassActive,
-      partnerSubscriptionLevel
-    );
+      partnerSubscriptionLevel,
+      trialState,
+      couponCodes: promoCodes,
+    });
+    const entitlementRecord = toEntitlementRecord(normalizedEntitlements);
+    const entitlements = this.buildMonetizationEntitlements(subscription, entitlementRecord, activeAddOns, seasonalPassActive, partnerSubscriptionLevel);
 
     return {
       subscription,
       entitlements,
       activeAddOns,
       partnerSubscriptionLevel,
+      trialState,
+      seasonPass: { ...ACTIVE_SEASON_PASS, premiumTrackUnlocked: entitlements.galleryQuestPass },
+      offers: MONETIZATION_OFFERS,
+      bundles: MONETIZATION_BUNDLES,
+      sponsoredChallenges: SPONSORED_CHALLENGES,
       suggestedUpsells: this.buildSuggestedUpsells(entitlements),
+    };
+  }
+
+  static getMonetizationArchitecture() {
+    return {
+      plan: MONETIZATION_PLAN,
+      products: PURCHASE_PRODUCTS,
+      offers: MONETIZATION_OFFERS,
+      coupons: MONETIZATION_COUPONS,
+      bundles: MONETIZATION_BUNDLES,
+      seasonPass: ACTIVE_SEASON_PASS,
+      sponsoredChallenges: SPONSORED_CHALLENGES,
     };
   }
 
@@ -170,39 +211,53 @@ export class SubscriptionService {
     return { isActive, tier, expiresAt };
   }
 
+  private static normalizeTierName(tier: string | null): string | null {
+    if (!tier) {
+      return null;
+    }
+
+    if (tier === 'PREMIUM_MONTHLY') return 'premium_monthly';
+    if (tier === 'PREMIUM_YEARLY') return 'premium_yearly';
+    if (tier === 'FAMILY_MONTHLY') return 'family_monthly';
+    return tier.toLowerCase();
+  }
+
   private static buildMonetizationEntitlements(
     subscription: SubscriptionStatus,
+    resolvedEntitlements: Record<string, boolean>,
     activeAddOns: string[],
     seasonalPassActive: boolean,
     partnerSubscriptionLevel: PartnerSubscriptionLevel
   ): MonetizationEntitlements {
-    const hasPremium = subscription.isActive;
+    const hasPremium = subscription.isActive || Boolean(resolvedEntitlements.unlimited_museums);
     const hasFamilyPlan = subscription.tier === 'FAMILY_MONTHLY';
     const hasAddOn = (addOnId: string): boolean => activeAddOns.includes(addOnId);
     const hasPartnerAccess = partnerSubscriptionLevel !== 'none';
 
     return {
       unlimitedMuseums: hasPremium,
-      advancedArHints: hasPremium,
-      extendedStatsHistory: hasPremium,
+      advancedArHints: hasPremium || Boolean(resolvedEntitlements.advanced_ar_hints),
+      extendedStatsHistory: hasPremium || Boolean(resolvedEntitlements.extended_stats_history),
       galleryQuestPass: seasonalPassActive,
-      premiumCardSkins: hasPremium || hasAddOn('premium_card_skins'),
-      avatarFramesAndNameEffects: hasPremium || hasAddOn('avatar_frames'),
-      specialConfettiStyles: hasPremium || hasAddOn('confetti_styles'),
+      premiumCardSkins: hasPremium || hasAddOn('premium_card_skins') || Boolean(resolvedEntitlements.cosmetic_locker),
+      avatarFramesAndNameEffects: hasPremium || hasAddOn('avatar_frames') || Boolean(resolvedEntitlements.cosmetic_locker),
+      specialConfettiStyles: hasPremium || hasAddOn('confetti_styles') || Boolean(resolvedEntitlements.cosmetic_locker),
       familyModeRooms: hasPremium || hasFamilyPlan,
       classroomPack: hasFamilyPlan || hasAddOn('classroom_pack'),
-      groupLeaderboardsAndCoop: hasPremium || hasFamilyPlan,
+      groupLeaderboardsAndCoop: hasPremium || hasFamilyPlan || Boolean(resolvedEntitlements.group_room_tools),
       hintPacks: hasAddOn('hint_packs'),
       bonusDailyChallengeCards: hasPremium || hasAddOn('bonus_daily_challenges'),
       speedRunMode: hasPremium || hasAddOn('speed_run_mode'),
-      collectibleStorageShelves: hasPremium || hasAddOn('collectible_storage'),
+      collectibleStorageShelves:
+        hasPremium || hasAddOn('collectible_storage') || Boolean(resolvedEntitlements.collectible_shelf_expanded),
       tokenDrops: seasonalPassActive || hasAddOn('token_drops'),
-      premiumShareExports: hasPremium || hasAddOn('premium_share_cards'),
-      sponsoredChallenges: hasPartnerAccess || hasAddOn('sponsored_challenges'),
-      ticketAndGiftShopOffers: hasPartnerAccess || hasAddOn('ticket_and_shop_promotions'),
+      premiumShareExports: hasPremium || hasAddOn('premium_share_cards') || Boolean(resolvedEntitlements.premium_recap_exports),
+      sponsoredChallenges: hasPartnerAccess || hasAddOn('sponsored_challenges') || Boolean(resolvedEntitlements.sponsored_surfaces),
+      ticketAndGiftShopOffers:
+        hasPartnerAccess || hasAddOn('ticket_and_shop_promotions') || Boolean(resolvedEntitlements.affiliate_offers),
       museumWhiteLabel: partnerSubscriptionLevel === 'white_label' || partnerSubscriptionLevel === 'enterprise',
       brandedArOverlays: hasPartnerAccess,
-      visitorEngagementAnalytics: hasPartnerAccess,
+      visitorEngagementAnalytics: hasPartnerAccess || Boolean(resolvedEntitlements.museum_partner_admin),
     };
   }
 
