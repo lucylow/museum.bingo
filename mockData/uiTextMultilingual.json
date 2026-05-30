@@ -1,0 +1,16 @@
+{
+  "common": {
+    "en": { "start_game": "Start Game", "score": "Score", "hint": "Hint", "bingo": "Bingo!" },
+    "es": { "start_game": "Iniciar Juego", "score": "Puntuación", "hint": "Pista", "bingo": "¡Bingo!" },
+    "fr": { "start_game": "Commencer la partie", "score": "Score", "hint": "Indice", "bingo": "Bingo !" },
+    "de": { "start_game": "Spiel starten", "score": "Punktzahl", "hint": "Hinweis", "bingo": "Bingo!" },
+    "zh": { "start_game": "开始游戏", "score": "得分", "hint": "提示", "bingo": "宾果！" }
+  },
+  "scan_feedback": {
+    "en": { "success": "Artwork recognized!", "error": "Try again" },
+    "es": { "success": "¡Obra reconocida!", "error": "Intenta de nuevo" },
+    "fr": { "success": "Œuvre reconnue !", "error": "Réessayez" },
+    "de": { "success": "Kunstwerk erkannt!", "error": "Versuchen Sie es erneut" },
+    "zh": { "success": "识别成功！", "error": "请重试" }
+  }
+}

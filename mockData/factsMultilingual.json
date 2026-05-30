@@ -1,0 +1,20 @@
+{
+  "jewish_museum": [
+    {
+      "fact_id": "fact_001",
+      "en": "The museum holds over 30,000 objects including works by Marc Chagall.",
+      "es": "El museo alberga más de 30,000 objetos, incluyendo obras de Marc Chagall.",
+      "fr": "Le musée conserve plus de 30 000 objets, dont des œuvres de Marc Chagall.",
+      "de": "Das Museum beherbergt über 30.000 Objekte, darunter Werke von Marc Chagall.",
+      "zh": "博物馆收藏超过3万件物品，包括马克·夏加尔的作品。"
+    },
+    {
+      "fact_id": "fact_002",
+      "en": "The museum’s building is a French Gothic mansion from 1908.",
+      "es": "El edificio del museo es una mansión gótica francesa de 1908.",
+      "fr": "Le bâtiment du musée est un manoir gothique français de 1908.",
+      "de": "Das Museumsgebäude ist eine französisch-gotische Villa aus dem Jahr 1908.",
+      "zh": "博物馆建筑是一座1908年的法国哥特式宅邸。"
+    }
+  ]
+}

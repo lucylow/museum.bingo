@@ -3,13 +3,15 @@
  */
 
 function buildSessionOutcome(input) {
+    const i18n = window.I18n;
+    const t = (key, params = {}) => (i18n && typeof i18n.t === "function" ? i18n.t(key, params) : key);
     const headline = input.primaryWinState === "BINGO_COMPLETE"
-        ? "Bingo!"
+        ? t("rewards.bingoComplete")
         : input.primaryWinState === "ROOM_VICTORY"
-            ? "Room Victory!"
-            : "Session Complete";
+            ? t("multiplayer.title")
+            : t("rewards.missionComplete");
 
-    const shareText = `I scored ${input.totalScore} in Museum.Bingo with ${input.tilesFound} tiles, ${input.linesCompleted} lines, and ${input.streakBest} best streak.`;
+    const shareText = `Museum.Bingo · ${t("stats.points", { count: input.totalScore })} · ${t("stats.tiles", { count: input.tilesFound })} · ${t("stats.streak", { count: input.streakBest })}`;
 
     return {
         primaryWinState: input.primaryWinState,
@@ -29,7 +31,12 @@ function buildSessionOutcome(input) {
             badgesEarned: input.badgesEarned,
             durationMs: input.durationMs,
             favoriteArtworkId: input.favoriteArtworkId,
-            rankInRoom: input.rankInRoom
+            rankInRoom: input.rankInRoom,
+            activeGuideId: input.activeGuideId,
+            activeGuideName: input.activeGuideName,
+            mostUsefulGuideTip: input.mostUsefulGuideTip,
+            whatYouLearned: input.whatYouLearned || [],
+            nextTimeSuggestion: input.nextTimeSuggestion || ""
         }
     };
 }

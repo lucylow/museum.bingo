@@ -4,7 +4,10 @@
   "description": "Premium AI-Powered AR Gallery Scavenger Hunt - DeveloperWeek NY 2026 Hackathon",
   "main": "index.html",
   "scripts": {
-    "start": "open index.html"
+    "start": "open index.html",
+    "test:guides": "node tests/guide-engine.test.js",
+    "test:localization": "node tests/localization.test.js",
+    "test:nft-gamification": "node tests/nft-gamification.test.js"
   },
   "keywords": [
     "premium",

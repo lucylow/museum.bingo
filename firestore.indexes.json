@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "multiplayer_rooms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "museumId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

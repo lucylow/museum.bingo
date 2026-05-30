@@ -1,0 +1,6 @@
+tower
+polars
+pyarrow
+requests
+fastapi
+uvicorn

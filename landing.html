@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Museum.Bingo - AR Scavenger Hunt for Museums</title>
+    <meta name="description" content="Museum.Bingo turns museum visits into AR-powered bingo adventures with live artwork recognition, multiplayer leaderboards, and rewards.">
+    <meta name="theme-color" content="#7c2d12">
+    <meta property="og:title" content="Museum.Bingo - AR Scavenger Hunt">
+    <meta property="og:description" content="Explore museums with AI-powered bingo, AR hints, and multiplayer challenges.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://placehold.co/1200x630/0f172a/f59e0b?text=Museum.Bingo">
+    <meta property="og:url" content="https://museum.bingo">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --brand: #d97706;
+            --brand-dark: #b45309;
+            --ink: #0f172a;
+        }
+
+        body {
+            font-family: "Inter", sans-serif;
+            scroll-behavior: smooth;
+        }
+
+        .skip-link {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+            z-index: 1000;
+            background: #111827;
+            color: #fff;
+            padding: 0.65rem 1rem;
+            border-radius: 0.5rem;
+        }
+
+        .skip-link:focus {
+            left: 0.75rem;
+            top: 0.75rem;
+        }
+
+        .hero-gradient {
+            background: linear-gradient(125deg, #1e1b4b 0%, #5b21b6 45%, #b45309 100%);
+        }
+
+        .soft-glass {
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            backdrop-filter: blur(10px);
+        }
+
+        .bingo-demo-card {
+            background: #fef9e6;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 40px -12px rgba(0, 0, 0, 0.35);
+        }
+
+        .bingo-tile {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .bingo-tile:hover {
+            transform: translateY(-1px);
+        }
+
+        .bingo-tile.found {
+            background: #dcfce7;
+            border-color: #15803d;
+        }
+
+        .bingo-tile.found::after {
+            content: "  ✓";
+            font-weight: 700;
+            color: #15803d;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            padding: 0.25rem 0.65rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .section-anchor {
+            scroll-margin-top: 90px;
+        }
+
+        .mobile-nav {
+            display: none;
+        }
+
+        .mobile-nav[data-open="true"] {
+            display: block;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            html:focus-within {
+                scroll-behavior: auto;
+            }
+
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header class="sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-gray-200 shadow-sm">
+        <div class="container mx-auto px-4 sm:px-6 py-4 flex justify-between items-center gap-4">
+            <a href="#" class="flex items-center gap-2" aria-label="Museum Bingo home">
+                <i class="fas fa-dice-d6 text-2xl text-amber-600" aria-hidden="true"></i>
+                <span class="font-black text-xl sm:text-2xl tracking-tight">Museum.<span class="text-amber-600">Bingo</span></span>
+            </a>
+
+            <button id="menuToggle" class="md:hidden rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold" aria-expanded="false" aria-controls="mobileNav">
+                Menu
+            </button>
+
+            <nav class="hidden md:flex gap-8 font-medium" aria-label="Primary">
+                <a href="#features" class="hover:text-amber-600 transition">Features</a>
+                <a href="#how-it-works" class="hover:text-amber-600 transition">How it works</a>
+                <a href="#demo" class="hover:text-amber-600 transition">Demo</a>
+                <a href="#tech" class="hover:text-amber-600 transition">Tech</a>
+            </nav>
+
+            <a href="#waitlist" class="hidden md:inline-flex bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-full font-semibold shadow-md transition">
+                <i class="fas fa-ticket-alt mr-2" aria-hidden="true"></i> Early access
+            </a>
+        </div>
+
+        <nav id="mobileNav" class="mobile-nav md:hidden border-t border-gray-200 bg-white/95" data-open="false" aria-label="Mobile">
+            <div class="container mx-auto px-4 py-3 grid gap-2">
+                <a href="#features" class="py-2">Features</a>
+                <a href="#how-it-works" class="py-2">How it works</a>
+                <a href="#demo" class="py-2">Demo</a>
+                <a href="#tech" class="py-2">Tech</a>
+                <a href="#waitlist" class="bg-amber-600 text-white rounded-full px-4 py-2 text-center font-semibold mt-1">Early access</a>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content">
+        <section class="hero-gradient text-white relative overflow-hidden">
+            <div class="absolute inset-0 opacity-25" aria-hidden="true">
+                <div class="absolute top-16 left-8 w-72 h-72 bg-amber-400 rounded-full blur-3xl"></div>
+                <div class="absolute bottom-8 right-8 w-80 h-80 bg-pink-500 rounded-full blur-3xl"></div>
+            </div>
+            <div class="container mx-auto px-4 sm:px-6 py-20 md:py-28 relative z-10">
+                <div class="max-w-3xl">
+                    <div class="inline-flex items-center gap-2 soft-glass rounded-full px-4 py-1.5 mb-6">
+                        <i class="fas fa-medal text-amber-300" aria-hidden="true"></i>
+                        <span class="text-sm font-semibold">DeveloperWeek NY 2026 Hackathon Project</span>
+                    </div>
+                    <h1 class="text-4xl md:text-6xl font-extrabold leading-tight tracking-tight">
+                        Turn any museum into <span class="text-amber-300">an AR adventure</span>
+                    </h1>
+                    <p class="text-lg md:text-xl mt-6 text-gray-100 max-w-2xl">
+                        Museum.Bingo combines live AI recognition, geofencing, and multiplayer bingo so every gallery visit feels like a game.
+                    </p>
+                    <div class="flex flex-wrap gap-4 mt-8">
+                        <a href="#waitlist" class="bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold px-7 py-3 rounded-full shadow-xl transition">
+                            Join waitlist
+                        </a>
+                        <a href="#demo" class="bg-white/20 hover:bg-white/30 border border-white/30 px-7 py-3 rounded-full font-semibold transition">
+                            Try interactive demo
+                        </a>
+                    </div>
+                    <div class="mt-8 flex flex-wrap items-center gap-5 text-sm text-gray-100">
+                        <span><i class="fas fa-check-circle text-amber-300 mr-1" aria-hidden="true"></i> Web preview available</span>
+                        <span><i class="fas fa-users mr-1" aria-hidden="true"></i> 300+ beta testers</span>
+                        <span><i class="fas fa-shield-alt mr-1" aria-hidden="true"></i> Privacy-first camera processing</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="section-anchor py-20 bg-white">
+            <div class="container mx-auto px-4 sm:px-6">
+                <div class="text-center max-w-2xl mx-auto mb-12">
+                    <span class="text-amber-600 font-bold uppercase tracking-wider">AR magic meets bingo</span>
+                    <h2 class="text-3xl md:text-5xl font-bold mt-2">Polished, playful, immersive</h2>
+                    <p class="text-gray-600 text-lg mt-4">Three signature interactions that make Museum.Bingo memorable.</p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <article class="bg-slate-50 rounded-2xl p-6 shadow-md border border-gray-100">
+                        <div class="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
+                            <i class="fas fa-coin text-2xl text-amber-600" aria-hidden="true"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">Bingo chip drop</h3>
+                        <p class="text-gray-600 mt-2">Recognize an artwork and drop a celebratory chip onto the card with haptics and sound.</p>
+                        <p class="mt-4 text-sm font-mono bg-gray-100 p-2 rounded">VisionCamera + Skia animation</p>
+                    </article>
+                    <article class="bg-slate-50 rounded-2xl p-6 shadow-md border border-gray-100">
+                        <div class="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mb-4">
+                            <i class="fas fa-temperature-high text-2xl text-red-500" aria-hidden="true"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">Heat vision hints</h3>
+                        <p class="text-gray-600 mt-2">Compass overlays guide players toward likely matches when they are stuck.</p>
+                        <p class="mt-4 text-sm font-mono bg-gray-100 p-2 rounded">BLE + ARKit/ARCore guidance</p>
+                    </article>
+                    <article class="bg-slate-50 rounded-2xl p-6 shadow-md border border-gray-100">
+                        <div class="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mb-4">
+                            <i class="fas fa-star text-2xl text-green-600" aria-hidden="true"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">AR confetti finish</h3>
+                        <p class="text-gray-600 mt-2">Hit BINGO and celebrate with contextual effects that make wins feel social and shareable.</p>
+                        <p class="mt-4 text-sm font-mono bg-gray-100 p-2 rounded">Particles + plane anchors</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="how-it-works" class="section-anchor py-20 bg-gray-50">
+            <div class="container mx-auto px-4 sm:px-6">
+                <div class="text-center mb-10">
+                    <h2 class="text-3xl md:text-4xl font-bold">Three steps to museum glory</h2>
+                    <p class="text-gray-600 text-lg mt-2">Geofence, scan, and win.</p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <article class="bg-white rounded-3xl p-7 shadow-sm text-center">
+                        <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-black">1</div>
+                        <h3 class="text-lg font-bold">Enter a museum</h3>
+                        <p class="text-gray-500 mt-2">Auto-detect your venue or choose from partner museums.</p>
+                    </article>
+                    <article class="bg-white rounded-3xl p-7 shadow-sm text-center">
+                        <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-black">2</div>
+                        <h3 class="text-lg font-bold">Scan and validate</h3>
+                        <p class="text-gray-500 mt-2">Point your camera at artworks and lock tiles instantly with AI matching.</p>
+                    </article>
+                    <article class="bg-white rounded-3xl p-7 shadow-sm text-center">
+                        <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-black">3</div>
+                        <h3 class="text-lg font-bold">Complete a line</h3>
+                        <p class="text-gray-500 mt-2">Win badges, climb multiplayer ranks, and unlock museum rewards.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="demo" class="section-anchor py-20 bg-white">
+            <div class="container mx-auto px-4 sm:px-6">
+                <div class="flex flex-col lg:flex-row gap-10 items-start">
+                    <div class="flex-1">
+                        <span class="text-amber-700 font-semibold">Live preview</span>
+                        <h2 class="text-3xl md:text-4xl font-bold mt-1">Try the bingo card demo</h2>
+                        <p class="text-gray-600 mt-3 text-lg">Select tiles to simulate recognition and see the line checker update in real time.</p>
+                        <ul class="mt-5 space-y-2 text-gray-700">
+                            <li><i class="fas fa-check-circle text-green-600 mr-2" aria-hidden="true"></i>Keyboard and screen-reader friendly</li>
+                            <li><i class="fas fa-check-circle text-green-600 mr-2" aria-hidden="true"></i>Live status updates</li>
+                            <li><i class="fas fa-check-circle text-green-600 mr-2" aria-hidden="true"></i>Confetti when a bingo line completes</li>
+                        </ul>
+                    </div>
+
+                    <div class="flex-1 bingo-demo-card p-5 w-full">
+                        <p class="text-center mb-3 text-sm"><i class="fas fa-dice-d6 text-amber-600" aria-hidden="true"></i> <strong>Metropolitan Museum</strong> - Today's card</p>
+                        <div class="grid grid-cols-3 gap-3" id="bingoGrid" role="group" aria-label="Bingo demo board">
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="0" type="button">Painting with a dog</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="1" type="button">Sculpture looks uncomfortable</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="2" type="button">Self-portrait, suspicious eyes</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="3" type="button">Landscape with mountains</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="4" type="button">Artwork with gold leaf</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="5" type="button">Still life with fruit</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="6" type="button">Portrait of royalty</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="7" type="button">Seashell in a painting</button>
+                            <button class="bingo-tile p-4 text-center rounded-xl font-medium" data-index="8" type="button">Artwork with text</button>
+                        </div>
+                        <p class="mt-4 text-sm text-center text-gray-600" id="bingoStatus" aria-live="polite">Select any tile to simulate AR recognition.</p>
+                        <div class="mt-3 flex gap-2">
+                            <span id="lineStatus" class="pill bg-slate-200 text-slate-700">No lines yet</span>
+                            <span id="tileCounter" class="pill bg-amber-100 text-amber-800">0 / 9 found</span>
+                        </div>
+                        <button id="resetBingoBtn" class="mt-4 w-full bg-gray-200 hover:bg-gray-300 py-2 rounded-full text-sm font-medium transition" type="button">
+                            Reset demo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tech" class="section-anchor py-20 bg-slate-900 text-white">
+            <div class="container mx-auto px-4 sm:px-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-center mb-3">Built on a modern stack</h2>
+                <p class="text-center text-gray-300 mb-10 max-w-2xl mx-auto">Fast enough for camera UX, robust enough for multiplayer and analytics.</p>
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <article class="bg-slate-800/60 rounded-xl p-5 border border-slate-700">
+                        <i class="fab fa-react text-2xl text-cyan-400" aria-hidden="true"></i>
+                        <h3 class="font-bold mt-2">React Native + VisionCamera</h3>
+                        <p class="text-sm text-gray-300 mt-1">On-device frame processing and responsive overlays.</p>
+                    </article>
+                    <article class="bg-slate-800/60 rounded-xl p-5 border border-slate-700">
+                        <i class="fas fa-map-marked-alt text-2xl text-rose-400" aria-hidden="true"></i>
+                        <h3 class="font-bold mt-2">ARKit / ARCore</h3>
+                        <p class="text-sm text-gray-300 mt-1">Indoor hints and direction-aware guidance for players.</p>
+                    </article>
+                    <article class="bg-slate-800/60 rounded-xl p-5 border border-slate-700">
+                        <i class="fas fa-bolt text-2xl text-yellow-400" aria-hidden="true"></i>
+                        <h3 class="font-bold mt-2">Realtime Sync</h3>
+                        <p class="text-sm text-gray-300 mt-1">Firebase presence and fast leaderboard updates.</p>
+                    </article>
+                    <article class="bg-slate-800/60 rounded-xl p-5 border border-slate-700">
+                        <i class="fas fa-chart-line text-2xl text-emerald-400" aria-hidden="true"></i>
+                        <h3 class="font-bold mt-2">Analytics Pipeline</h3>
+                        <p class="text-sm text-gray-300 mt-1">Session-level telemetry for museum operators.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="waitlist" class="section-anchor py-20 bg-gradient-to-r from-amber-800 to-amber-600 text-white">
+            <div class="container mx-auto px-4 sm:px-6 text-center">
+                <i class="fas fa-envelope-open-text text-4xl mb-4" aria-hidden="true"></i>
+                <h2 class="text-3xl md:text-4xl font-bold">Be first to play Museum.Bingo</h2>
+                <p class="text-lg mt-2 max-w-xl mx-auto">Join the waitlist and we will notify you when beta slots open.</p>
+                <form id="signupForm" class="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto" novalidate>
+                    <label for="emailInput" class="sr-only">Email address</label>
+                    <input id="emailInput" name="email" type="email" autocomplete="email" placeholder="Enter your email" required class="flex-1 px-5 py-3 rounded-full text-gray-900 focus:outline-none focus:ring-4 focus:ring-amber-300">
+                    <button type="submit" class="bg-black hover:bg-gray-900 px-8 py-3 rounded-full font-bold transition shadow-xl">Notify me</button>
+                </form>
+                <p id="formMessage" class="text-sm mt-4 min-h-[1.25rem]" aria-live="polite"></p>
+                <p class="text-sm mt-3 opacity-85">No spam, only launch updates.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-900 text-gray-400 py-10">
+        <div class="container mx-auto px-4 sm:px-6 flex flex-col md:flex-row justify-between gap-6">
+            <div>
+                <p class="text-white font-bold text-xl">Museum.Bingo</p>
+                <p class="text-sm mt-1 max-w-xs">AR scavenger hunt for cultural spaces.</p>
+            </div>
+            <div class="text-sm">
+                <p>Contact: hello@museum.bingo</p>
+                <p class="mt-1">Built for DeveloperWeek NY 2026</p>
+                <p class="mt-2 text-xs">© <span id="footerYear"></span> Museum.Bingo</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1" defer></script>
+    <script>
+        (function () {
+            const menuToggle = document.getElementById("menuToggle");
+            const mobileNav = document.getElementById("mobileNav");
+            const footerYear = document.getElementById("footerYear");
+            const tiles = Array.from(document.querySelectorAll(".bingo-tile"));
+            const statusDiv = document.getElementById("bingoStatus");
+            const lineStatus = document.getElementById("lineStatus");
+            const tileCounter = document.getElementById("tileCounter");
+            const resetBtn = document.getElementById("resetBingoBtn");
+            const signupForm = document.getElementById("signupForm");
+            const emailInput = document.getElementById("emailInput");
+            const formMessage = document.getElementById("formMessage");
+
+            footerYear.textContent = String(new Date().getFullYear());
+
+            menuToggle.addEventListener("click", function () {
+                const isOpen = mobileNav.getAttribute("data-open") === "true";
+                mobileNav.setAttribute("data-open", String(!isOpen));
+                menuToggle.setAttribute("aria-expanded", String(!isOpen));
+            });
+
+            mobileNav.querySelectorAll("a").forEach(function (link) {
+                link.addEventListener("click", function () {
+                    mobileNav.setAttribute("data-open", "false");
+                    menuToggle.setAttribute("aria-expanded", "false");
+                });
+            });
+
+            const foundTiles = new Array(9).fill(false);
+            const winningLines = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8],
+                [0, 3, 6], [1, 4, 7], [2, 5, 8],
+                [0, 4, 8], [2, 4, 6]
+            ];
+            let hasLine = false;
+            let audioContext;
+
+            function countFound() {
+                return foundTiles.filter(Boolean).length;
+            }
+
+            function detectLine() {
+                return winningLines.some(function (line) {
+                    return line.every(function (idx) { return foundTiles[idx]; });
+                });
+            }
+
+            function beep() {
+                try {
+                    if (!audioContext) {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    const oscillator = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    oscillator.type = "triangle";
+                    oscillator.frequency.value = 880;
+                    gain.gain.value = 0.12;
+                    oscillator.connect(gain);
+                    gain.connect(audioContext.destination);
+                    oscillator.start();
+                    gain.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.2);
+                    oscillator.stop(audioContext.currentTime + 0.2);
+                } catch (error) {
+                    // Audio can fail on restricted contexts; UI still works.
+                }
+            }
+
+            function launchConfetti() {
+                if (typeof window.confetti === "function") {
+                    window.confetti({ particleCount: 140, spread: 70, origin: { y: 0.65 } });
+                }
+            }
+
+            function refreshBoardStatus() {
+                const foundCount = countFound();
+                hasLine = detectLine();
+
+                tiles.forEach(function (tile, idx) {
+                    const active = foundTiles[idx];
+                    tile.classList.toggle("found", active);
+                    tile.setAttribute("aria-pressed", String(active));
+                    tile.setAttribute("aria-label", (active ? "Completed: " : "Not completed: ") + tile.textContent.trim());
+                });
+
+                tileCounter.textContent = foundCount + " / 9 found";
+
+                if (hasLine) {
+                    lineStatus.textContent = "Bingo line complete";
+                    lineStatus.className = "pill bg-green-100 text-green-700";
+                    statusDiv.textContent = "BINGO! Great run - confetti launched.";
+                } else if (foundCount > 0) {
+                    lineStatus.textContent = "Building a line";
+                    lineStatus.className = "pill bg-amber-100 text-amber-800";
+                    statusDiv.textContent = "Nice! Keep scanning to complete a line.";
+                } else {
+                    lineStatus.textContent = "No lines yet";
+                    lineStatus.className = "pill bg-slate-200 text-slate-700";
+                    statusDiv.textContent = "Select any tile to simulate AR recognition.";
+                }
+            }
+
+            function markTile(index) {
+                if (foundTiles[index]) {
+                    statusDiv.textContent = "Tile already completed. Choose another artwork.";
+                    return;
+                }
+                foundTiles[index] = true;
+                if (navigator.vibrate) {
+                    navigator.vibrate(40);
+                }
+                beep();
+                refreshBoardStatus();
+                statusDiv.textContent = 'Recognized "' + tiles[index].textContent.trim() + '" and dropped a bingo chip.';
+                if (detectLine()) {
+                    launchConfetti();
+                }
+            }
+
+            tiles.forEach(function (tile) {
+                tile.addEventListener("click", function () {
+                    const index = Number(tile.getAttribute("data-index"));
+                    if (!Number.isNaN(index)) {
+                        markTile(index);
+                    }
+                });
+            });
+
+            resetBtn.addEventListener("click", function () {
+                foundTiles.fill(false);
+                refreshBoardStatus();
+                statusDiv.textContent = "Demo reset. Ready for a new run.";
+            });
+
+            signupForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+                const email = emailInput.value.trim();
+                const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+                if (!valid) {
+                    formMessage.textContent = "Please enter a valid email address.";
+                    formMessage.className = "text-sm mt-4 min-h-[1.25rem] text-red-100";
+                    emailInput.focus();
+                    return;
+                }
+
+                formMessage.textContent = "Thanks! You are on the Museum.Bingo waitlist.";
+                formMessage.className = "text-sm mt-4 min-h-[1.25rem] text-emerald-100";
+                signupForm.reset();
+            });
+
+            refreshBoardStatus();
+        })();
+    </script>
+</body>
+</html>

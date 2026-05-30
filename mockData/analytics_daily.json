@@ -1,0 +1,43 @@
+{
+  "met_nyc_2025-05-27": {
+    "museumId": "met_nyc",
+    "date": "2025-05-27",
+    "unique_visitors": 142,
+    "total_sessions": 187,
+    "avg_session_duration_seconds": 1250,
+    "avg_tiles_per_session": 4.2,
+    "avg_bingos_per_session": 0.31,
+    "avg_score_per_session": 42.8,
+    "top_artworks": [
+      { "artworkId": "met_001", "validations": 89, "avg_time_to_find_seconds": 34 },
+      { "artworkId": "met_003", "validations": 76, "avg_time_to_find_seconds": 52 },
+      { "artworkId": "met_005", "validations": 45, "avg_time_to_find_seconds": 112 }
+    ],
+    "popular_prompts": [
+      { "prompt": "Painting with a dog", "completions": 98 },
+      { "prompt": "Self-portrait with suspicious eyes", "completions": 87 },
+      { "prompt": "Artwork with gold leaf", "completions": 56 }
+    ],
+    "visitor_flow": {
+      "most_common_route": ["Gallery 821", "Gallery 822", "Great Hall"],
+      "average_stopover_seconds": 45
+    },
+    "retention": {
+      "d1": 0.22,
+      "d7": 0.09,
+      "d30": 0.03
+    }
+  },
+  "moma_nyc_2025-05-27": {
+    "museumId": "moma_nyc",
+    "date": "2025-05-27",
+    "unique_visitors": 98,
+    "total_sessions": 112,
+    "avg_session_duration_seconds": 980,
+    "avg_tiles_per_session": 3.5,
+    "top_artworks": [
+      { "artworkId": "moma_001", "validations": 67 },
+      { "artworkId": "moma_003", "validations": 54 }
+    ]
+  }
+}

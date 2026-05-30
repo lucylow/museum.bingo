@@ -111,15 +111,31 @@ const gameState = {
     nearMatchPlayedAt: 0,
     subscriptions: [],
     currentCardItems: [],
+    clueDeck: [],
+    currentObjectiveId: null,
+    scanProximity: 0,
     winLadderBonusPoints: 0,
     winLadderEvents: [],
     lastWinStates: [],
     sessionRecap: null,
+    guide: {
+        activeGuideId: "nova",
+        lastLine: "",
+        lastBeat: null,
+        lastLineAt: 0,
+        recentTips: []
+    },
     settings: {
+        locale: (window.I18n && window.I18n.getLocale && window.I18n.getLocale()) || "en",
+        roomLanguage: "en",
         cardSize: 3,
         difficultyMode: "standard",
         roomMode: "multiplayer",
         dailyChallengeEnabled: true,
+        ageFriendlyMode: true,
+        guideSessionType: "first_time",
+        guideEnergy: "calm",
+        selectedGuideId: "nova",
         compactMode: false,
         highContrast: false,
         reducedMotion: false,
@@ -142,6 +158,7 @@ const passport = getStoredPassport();
 
 const DOM = {
     board: document.getElementById("bingo-board"),
+    localeSwitcher: document.getElementById("locale-switcher"),
     scanBtn: document.getElementById("scan-btn"),
     resetBtn: document.getElementById("reset-btn"),
     scannerOverlay: document.getElementById("scanner-overlay"),
@@ -185,6 +202,7 @@ const DOM = {
     artFact: document.getElementById("art-fact"),
     vrHud: document.getElementById("vr-hud"),
     roomCode: document.getElementById("room-code"),
+    roomStatus: document.getElementById("room-status"),
     activePlayerName: document.getElementById("active-player-name"),
     tilesProgress: document.getElementById("tiles-progress"),
     bingoProgressFill: document.getElementById("bingo-progress-fill"),
@@ -237,7 +255,23 @@ const DOM = {
     replayModeCards: document.getElementById("replay-mode-cards"),
     shareCardBtn: document.getElementById("share-card-btn"),
     recapBadges: document.getElementById("recap-badges"),
-    victoryHighlight: document.getElementById("victory-highlight")
+    victoryHighlight: document.getElementById("victory-highlight"),
+    clueScroll: document.getElementById("clue-scroll"),
+    objectiveTitle: document.getElementById("objective-title"),
+    objectiveText: document.getElementById("objective-text"),
+    objectiveRoute: document.getElementById("objective-route"),
+    objectiveProximity: document.getElementById("objective-proximity"),
+    objectiveProgress: document.getElementById("objective-progress"),
+    objectiveProgressFill: document.getElementById("objective-progress-fill"),
+    objectiveAction: document.getElementById("objective-action"),
+    roomLanguageChip: document.getElementById("room-language-chip"),
+    ageFriendlyToggle: document.getElementById("age-friendly-toggle"),
+    guideModePill: document.getElementById("guide-mode-pill"),
+    guideActiveCard: document.getElementById("guide-active-card"),
+    guideActions: document.getElementById("guide-actions"),
+    guidePickerWrap: document.getElementById("guide-picker-wrap"),
+    guideSessionType: document.getElementById("guide-session-type"),
+    guideEnergy: document.getElementById("guide-energy")
 };
 
 function playSound(freq, type = "sine", duration = 0.1, volume = 0.1) {
@@ -297,20 +331,53 @@ function playGameSound(name) {
     if (sounds[name]) sounds[name]();
 }
 
-const tutorialSteps = [
-    { icon: "🎯", title: "Welcome Explorer!", text: "Ready to discover the secrets of the museum? Let's show you how to use your AI scanner." },
-    { icon: "🖼️", title: "Pick an Object", text: "Tap any tile on the bingo board to select an art piece. You'll get a special AI riddle to solve!" },
-    { icon: "📷", title: "Scan & Find", text: "Click 'AI SCAN' and point your camera at the real art piece. Our AI will identify it instantly!" }
-];
+function t(key, params = {}) {
+    if (window.I18n && typeof window.I18n.t === "function") {
+        return window.I18n.t(key, params);
+    }
+    return key;
+}
 
-const replayModes = [
-    { title: "Daily Challenge", meta: "One curated run with bonus rewards" },
-    { title: "Themed Card", meta: "Play art-, history-, or science-focused boards" },
-    { title: "Family Mode", meta: "Friendly pacing and broad prompts" },
-    { title: "Speed Run", meta: "Beat the clock and chase cleaner scans" },
-    { title: "Streak Challenge", meta: "Keep every scan hot" },
-    { title: "Room Battle", meta: "Race live with your lobby" }
-];
+function tn(value, style = "decimal") {
+    if (window.I18n && typeof window.I18n.formatters === "function") {
+        return window.I18n.formatters().number(value, style);
+    }
+    return String(value);
+}
+
+function getTutorialSteps() {
+    const guide = window.GuideEngine && typeof window.GuideEngine.selectGuide === "function"
+        ? window.GuideEngine.selectGuide({
+            selectedGuideId: gameState.settings.selectedGuideId || gameState.guide.activeGuideId,
+            ageFriendlyMode: gameState.settings.ageFriendlyMode,
+            sessionType: gameState.settings.guideSessionType,
+            museumTheme: currentTheme,
+            difficulty: gameState.settings.difficultyMode,
+            multiplayer: gameState.settings.roomMode === "multiplayer",
+            energyPreference: gameState.settings.guideEnergy
+        })
+        : null;
+    const guideName = guide ? guide.name : "your guide";
+    const onboardingMode = String(gameState.settings.guideSessionType || "first_time").replaceAll("_", " ");
+    return [
+        { icon: guide ? guide.avatar : "🎯", title: `${t("onboarding.welcomeTitle")} • ${guideName}`, text: `${t("onboarding.welcomeBody")} (${onboardingMode})` },
+        { icon: "🖼️", title: t("onboarding.stepPickTitle"), text: `${t("onboarding.stepPickBody")} ${guideName} will suggest your next best tile.` },
+        { icon: "📷", title: t("onboarding.stepScanTitle"), text: `${t("onboarding.stepScanBody")} Ask ${guideName} for hints any time.` }
+    ];
+}
+
+function getReplayModes() {
+    return [
+        { title: "Daily Challenge", meta: "Complete the curated mission route." },
+        { title: "Galaxy Theme Card", meta: "Play with a themed orbital target set." },
+        { title: "Family Mode", meta: "Friendly, readable mission pacing." },
+        { title: "Speed Run", meta: "Launch fast scans and beat the timer." },
+        { title: "Streak Challenge", meta: "Maintain a clean 5+ signal streak." },
+        { title: "Line Race", meta: "Finish one line before rival crews." },
+        { title: "Room Battle", meta: "Compete live in a shared expedition." },
+        { title: "Orbital Expedition", meta: "Progress through staged mission arcs." }
+    ];
+}
 
 const GameManager = {
     setStatusMessage(message) {
@@ -323,13 +390,67 @@ const GameManager = {
         element.classList.toggle("hidden", hidden);
     },
 
+    updateLocaleUi() {
+        if (!window.I18n) return;
+        const locale = window.I18n.getLocale();
+        gameState.settings.locale = locale;
+        const direction = window.I18n.getDirection(locale);
+        const pack = window.I18n.getLanguagePack(locale);
+        document.documentElement.setAttribute("lang", locale);
+        document.documentElement.setAttribute("dir", direction);
+        if (DOM.localeSwitcher) {
+            const supported = window.I18n.getSupportedLanguages();
+            if (!DOM.localeSwitcher.options.length) {
+                supported.forEach((lang) => {
+                    const option = document.createElement("option");
+                    option.value = lang.code;
+                    option.textContent = `${lang.nativeName} / ${lang.englishName}`;
+                    DOM.localeSwitcher.appendChild(option);
+                });
+            }
+            DOM.localeSwitcher.value = locale;
+            DOM.localeSwitcher.setAttribute("aria-label", t("accessibility.switchLanguage"));
+            DOM.localeSwitcher.title = t("language.current", {
+                language: getLanguageLabel(locale)
+            });
+        }
+        if (DOM.roomLanguageChip) {
+            DOM.roomLanguageChip.textContent = String(gameState.settings.roomLanguage || locale).toUpperCase();
+            DOM.roomLanguageChip.title = t("language.roomLanguage");
+        }
+        this.applyStaticTranslations();
+        const status = this.getTranslationStatusNode(pack.translationState);
+        if (DOM.statusMsg && status) {
+            DOM.statusMsg.prepend(status);
+        }
+    },
+
+    applyStaticTranslations() {
+        if (DOM.scanBtn) DOM.scanBtn.textContent = `📷 ${t("gameplay.scanButton")}`;
+        if (DOM.resetBtn) DOM.resetBtn.textContent = `🔄 ${t("gameplay.resetButton")}`;
+        if (DOM.closeSuccessModal) DOM.closeSuccessModal.textContent = t("scan.successContinue");
+        if (DOM.helpBtn) DOM.helpBtn.textContent = t("scan.helpMe");
+        if (DOM.roomCode) DOM.roomCode.textContent = t("gameplay.roomCode", { roomId: gameState.roomId });
+    },
+
+    getTranslationStatusNode(state) {
+        if (!window.DesignSystem || typeof window.DesignSystem.TranslationBadge !== "function") return null;
+        return window.DesignSystem.TranslationBadge({
+            label: state === "complete" ? t("multiplayer.translatedBadge") : t("language.incomplete"),
+            state
+        });
+    },
+
     setScanState(state, label, tone = "ar") {
         const overlay = DOM.scannerOverlay;
         if (overlay) {
             overlay.classList.remove(
+                "scan-state-aiming",
                 "scan-state-scanning",
                 "scan-state-almost",
                 "scan-state-recognized",
+                "scan-state-success-burst",
+                "scan-state-mystery-preview",
                 "scan-state-hint-active",
                 "scan-state-low-confidence"
             );
@@ -338,6 +459,147 @@ const GameManager = {
         if (DOM.scanStatePill) {
             DOM.scanStatePill.className = `status-pill status-pill--${tone}`;
             DOM.scanStatePill.textContent = label;
+        }
+    },
+
+    buildGuideContext(extra = {}) {
+        return {
+            selectedGuideId: gameState.settings.selectedGuideId || gameState.guide.activeGuideId,
+            ageFriendlyMode: Boolean(gameState.settings.ageFriendlyMode),
+            sessionType: gameState.settings.guideSessionType,
+            userMode: gameState.settings.roomMode,
+            museumTheme: currentTheme,
+            difficulty: gameState.settings.difficultyMode,
+            multiplayer: gameState.settings.roomMode === "multiplayer",
+            energyPreference: gameState.settings.guideEnergy,
+            ...extra
+        };
+    },
+
+    getActiveGuide() {
+        if (!window.GuideEngine || typeof window.GuideEngine.selectGuide !== "function") return null;
+        const guide = window.GuideEngine.selectGuide(this.buildGuideContext());
+        if (guide && guide.id !== gameState.guide.activeGuideId) {
+            gameState.guide.activeGuideId = guide.id;
+            gameState.settings.selectedGuideId = guide.id;
+        }
+        return guide;
+    },
+
+    setActiveGuide(guideId, reason = "manual") {
+        if (!window.GuideEngine || typeof window.GuideEngine.pickGuideById !== "function") return;
+        const selected = window.GuideEngine.pickGuideById(guideId);
+        if (!selected) return;
+        gameState.guide.activeGuideId = selected.id;
+        gameState.settings.selectedGuideId = selected.id;
+        saveSettings();
+        this.renderGuideSurface();
+        if (reason === "manual") {
+            const line = this.emitGuideBeat("welcome", { nudge: `${selected.name} is ready to guide this run.` }, { force: true, speak: false });
+            if (line) this.setStatusMessage(`🧭 ${line}`);
+        }
+    },
+
+    emitGuideBeat(beat, context = {}, options = {}) {
+        const guide = this.getActiveGuide();
+        if (!guide || !window.GuideEngine || typeof window.GuideEngine.renderGuideLine !== "function") return "";
+        const now = Date.now();
+        const throttled = window.GuideEngine.shouldThrottleDialogue({
+            beat,
+            now,
+            lastLineAt: gameState.guide.lastLineAt,
+            lastBeat: gameState.guide.lastBeat,
+            minGapMs: options.minGapMs || 2800
+        });
+        if (throttled && !options.force) return "";
+        const text = window.GuideEngine.renderGuideLine({
+            guide,
+            beat,
+            context: this.buildGuideContext(context),
+            previousLine: gameState.guide.lastLine
+        });
+        if (!text) return "";
+        gameState.guide.lastLine = text;
+        gameState.guide.lastBeat = beat;
+        gameState.guide.lastLineAt = now;
+        gameState.guide.recentTips = [text, ...gameState.guide.recentTips].slice(0, 6);
+        this.renderGuideSurface(beat, text);
+        if (options.speak !== false && typeof speakText === "function") {
+            speakText(`${guide.name}: ${text}`, 0.9);
+        }
+        return text;
+    },
+
+    getGuideSuggestion(snapshot) {
+        if (!snapshot) return "Pick any tile to start your mission.";
+        if (snapshot.hasFullCard) return "Open recap and capture your favorite discovery.";
+        if (snapshot.nextBestTile) return `Try tile #${snapshot.nextBestTile}; it gives the best line pressure.`;
+        if (snapshot.streak >= 3) return "Great streak. Keep scans steady to protect momentum.";
+        return "Use one clue card and one clean scan to build progress.";
+    },
+
+    renderGuideSurface(beat = "encourage", line = "") {
+        if (!window.DesignSystem) return;
+        const guide = this.getActiveGuide();
+        if (!guide) return;
+        const renderedLine = line || gameState.guide.lastLine || guide.introLine;
+        if (DOM.guideActiveCard) {
+            DOM.guideActiveCard.innerHTML = "";
+            DOM.guideActiveCard.appendChild(window.DesignSystem.GuideCard({
+                name: guide.name,
+                role: guide.expertiseFocus,
+                text: renderedLine,
+                emoji: guide.avatar,
+                beat,
+                tone: guide.voiceTone === "calm" ? "neutral" : "accent"
+            }));
+        }
+        if (DOM.guideModePill) DOM.guideModePill.textContent = gameState.settings.guideSessionType.replaceAll("_", "-");
+        if (DOM.guideActions) {
+            DOM.guideActions.innerHTML = "";
+            const row = window.DesignSystem.GuideActionRow({
+                actions: [
+                    { id: "help", label: "Help me scan" },
+                    { id: "next", label: "Suggest next tile" },
+                    { id: "tone", label: "Switch tone" },
+                    { id: "auto", label: "Auto-pick guide" }
+                ]
+            });
+            row.querySelectorAll("[data-action]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    if (button.dataset.action === "help") {
+                        const tip = this.emitGuideBeat("hint", { hintAction: "Move closer, reduce glare, and re-center." }, { force: true, speak: false });
+                        if (tip) this.setStatusMessage(`🧭 ${tip}`);
+                    } else if (button.dataset.action === "next") {
+                        const snapshot = gameState.gamification ? gameState.gamification.getStateSnapshot() : null;
+                        const suggestion = this.getGuideSuggestion(snapshot);
+                        const tip = this.emitGuideBeat("focus", { nudge: suggestion, nextTile: snapshot && snapshot.nextBestTile }, { force: true, speak: false });
+                        if (tip) this.setStatusMessage(`🧭 ${tip}`);
+                    } else if (button.dataset.action === "tone") {
+                        gameState.settings.guideEnergy = gameState.settings.guideEnergy === "calm" ? "energetic" : "calm";
+                        if (DOM.guideEnergy) DOM.guideEnergy.value = gameState.settings.guideEnergy;
+                        saveSettings();
+                        this.emitGuideBeat("ask", {}, { force: true, speak: false });
+                    } else if (button.dataset.action === "auto") {
+                        if (window.GuideEngine && typeof window.GuideEngine.selectGuide === "function") {
+                            const autoGuide = window.GuideEngine.selectGuide(this.buildGuideContext({ selectedGuideId: undefined }));
+                            if (autoGuide) this.setActiveGuide(autoGuide.id, "auto");
+                        }
+                    }
+                });
+            });
+            DOM.guideActions.appendChild(row);
+        }
+        if (DOM.guidePickerWrap && window.GuideEngine && Array.isArray(window.GuideEngine.GUIDE_CAST)) {
+            DOM.guidePickerWrap.innerHTML = "";
+            const picker = window.DesignSystem.GuidePicker({
+                guides: window.GuideEngine.GUIDE_CAST,
+                selectedGuideId: guide.id
+            });
+            picker.querySelectorAll(".guide-picker__chip").forEach((chip) => {
+                chip.addEventListener("click", () => this.setActiveGuide(chip.dataset.guideId || "", "manual"));
+            });
+            DOM.guidePickerWrap.appendChild(picker);
         }
     },
 
@@ -352,49 +614,82 @@ const GameManager = {
         };
     },
 
+    getLocalizedArtifact(item) {
+        if (!item) return { title: "", details: "", translationState: "missing" };
+        if (!window.ContentLocalization || typeof window.ContentLocalization.getLocalizedArtifactContent !== "function") {
+            return { title: item.name || "Artifact", details: item.fact || "", translationState: "missing" };
+        }
+        const locale = window.I18n && window.I18n.getLocale ? window.I18n.getLocale() : "en";
+        const localized = window.ContentLocalization.getLocalizedArtifactContent(item, locale);
+        const details = this.getArtifactStory(item);
+        const content = localized.content || {};
+        const summary = `${content.shortExplanation || item.fact || ""} ${content.lookClosely || ""}`.trim();
+        const contextNote = `${content.whyItMatters || ""}`.trim();
+        return {
+            title: content.title || item.name || "Artifact",
+            details: [summary, contextNote, `${details.era} · ${details.origin}`].filter(Boolean).join(" "),
+            glossary: content.glossaryTerm || "",
+            translationState: localized.translationState || "missing"
+        };
+    },
+
+    getSpaceMissionContext(item) {
+        const details = this.getArtifactStory(item);
+        const zoneByTheme = {
+            art: "Nebula Gallery",
+            history: "Asteroid Archive",
+            science: "Orbital Lab"
+        };
+        return {
+            zone: zoneByTheme[currentTheme] || "Deep Space Gallery",
+            category: details.category,
+            signal: details.material
+        };
+    },
+
     getScanFallbackState(confidence) {
         if (confidence >= 65) {
             return {
                 state: "almost",
-                label: "Almost there",
+                label: t("scan.almostRecognized"),
                 tone: "accent",
-                guidance: "Almost there. Hold steady and center the artifact.",
-                statusMessage: "Almost there. Keep the frame stable and confirm once recognition improves."
+                guidance: t("scan.guidanceAlmost"),
+                statusMessage: t("scan.guidanceAlmost")
             };
         }
         if (confidence >= 50) {
             return {
                 state: "low-confidence",
-                label: "Move closer",
+                label: t("scan.guidanceMoveCloser"),
                 tone: "warning",
-                guidance: "Move closer to the artifact so details fill the frame.",
-                statusMessage: "Move closer for a clearer match."
+                guidance: t("scan.guidanceMoveCloser"),
+                statusMessage: t("scan.guidanceMoveCloser")
             };
         }
         if (confidence >= 30) {
             return {
                 state: "low-confidence",
-                label: "Too much glare",
+                label: t("scan.guidanceGlare"),
                 tone: "danger",
-                guidance: "Too much glare detected. Tilt slightly to reduce reflections.",
-                statusMessage: "Glare is reducing confidence. Try another angle."
+                guidance: t("scan.guidanceGlare"),
+                statusMessage: t("scan.guidanceGlare")
             };
         }
         if (confidence >= 15) {
             return {
                 state: "low-confidence",
-                label: "Try another angle",
+                label: t("scan.guidanceTryAngle"),
                 tone: "danger",
-                guidance: "Try another angle and isolate a single artifact.",
-                statusMessage: "Try another angle and keep one artifact in view."
+                guidance: t("scan.guidanceTryAngle"),
+                statusMessage: t("scan.guidanceTryAngle")
             };
         }
         return {
             state: "low-confidence",
-            label: "Not a match yet",
+            label: t("scan.guidanceNoMatch"),
             tone: "danger",
-            guidance: "Not a match yet. Reframe and scan another nearby artifact.",
-            statusMessage: "Not a match yet. Keep exploring the gallery."
+            guidance: t("scan.guidanceNoMatch"),
+            statusMessage: t("scan.guidanceNoMatch")
         };
     },
 
@@ -484,6 +779,8 @@ const GameManager = {
         gameState.subscriptions = [];
 
         gameState.syncService = syncFactory({ roomId: gameState.roomId });
+        const seasonId = gameState.settings.activeSeasonId
+            || `season_${new Date().getUTCFullYear()}_q${Math.floor(new Date().getUTCMonth() / 3) + 1}`;
         gameState.gamification = engineFactory({
             userId: gameState.currentUser.uid,
             playerName: gameState.currentUser.displayName,
@@ -493,6 +790,7 @@ const GameManager = {
             difficultyMode: gameState.settings.difficultyMode,
             roomMode: gameState.settings.roomMode,
             dailyChallengeEnabled: gameState.settings.dailyChallengeEnabled,
+            seasonId,
             scoring: { deductHintUsage: false, hintDeductionPoints: 5 }
         });
         gameState.gamification.hydrate(this.loadGamificationState());
@@ -525,7 +823,9 @@ const GameManager = {
         const entry = gameState.gamification.getRoomEntry();
         const mergedEntry = {
             ...entry,
-            points: Number(entry.points || 0) + Number(gameState.winLadderBonusPoints || 0)
+            points: Number(entry.points || 0) + Number(gameState.winLadderBonusPoints || 0),
+            locale: gameState.settings.locale,
+            roomLanguage: gameState.settings.roomLanguage
         };
         const entries = gameState.syncService.updateRoomEntry(mergedEntry);
         gameState.gamification.applyLeaderboard(entries);
@@ -539,7 +839,7 @@ const GameManager = {
         const displayPoints = Number(snapshot.points || 0) + Number(gameState.winLadderBonusPoints || 0);
         if (DOM.pointsTotal) DOM.pointsTotal.textContent = String(displayPoints);
         if (DOM.currentStreak) DOM.currentStreak.textContent = String(snapshot.streak);
-        if (DOM.tilesProgress) DOM.tilesProgress.textContent = `${snapshot.completedTiles.length}/${totalTiles} TILES`;
+        if (DOM.tilesProgress) DOM.tilesProgress.textContent = `${snapshot.completedTiles.length}/${totalTiles}`;
         if (DOM.bingoProgressFill) DOM.bingoProgressFill.style.width = `${Math.round(ratio * 100)}%`;
         if (DOM.bingoLinesCount) DOM.bingoLinesCount.textContent = String(snapshot.bingoLines.length);
         if (DOM.cardStatusLabel) DOM.cardStatusLabel.textContent = String(snapshot.completionState || "no_line").replaceAll("_", " ").toUpperCase();
@@ -549,22 +849,26 @@ const GameManager = {
                 ? `Complete! +200 bonus ready`
                 : `${daily.completed}/${totalTiles} complete`;
         }
-        if (DOM.roomCode) DOM.roomCode.textContent = `ROOM ${gameState.roomId}`;
+        if (DOM.roomCode) DOM.roomCode.textContent = t("gameplay.roomCode", { roomId: gameState.roomId });
         if (DOM.activePlayerName) DOM.activePlayerName.textContent = gameState.currentUser.displayName;
         if (DOM.nextBestTile) {
             DOM.nextBestTile.textContent = snapshot.nextBestTile
-                ? `Next best tile: #${snapshot.nextBestTile}`
-                : "Next best tile: any";
+                ? t("gameplay.nextBestOne", { tile: snapshot.nextBestTile })
+                : t("gameplay.nextBestAny");
         }
         this.renderBoardProgress(snapshot, ratio);
         this.renderCelebrationBanner(snapshot);
+        this.renderObjectiveSurface();
+        this.renderClueDeck();
         this.renderGoalCards(snapshot);
         this.renderReplayModeCards();
-        this.renderBadgePreviews(snapshot.badges);
-        this.renderBadgeGallery(snapshot.badges);
+        this.renderBadgePreviews(snapshot.badges, snapshot.nftTokens);
+        this.renderBadgeGallery(snapshot.badges, snapshot.nftTokens);
         this.renderProfileStats(snapshot);
         this.updateBoardTileStates(snapshot);
         this.loadLeaderboard();
+        this.renderRoomStatus(snapshot);
+        this.renderGuideSurface();
     },
 
     updateBoardTileStates(snapshot) {
@@ -610,55 +914,107 @@ const GameManager = {
         if (DOM.lineProgressCount) DOM.lineProgressCount.textContent = String(lineCount);
         if (DOM.streakIndicator) DOM.streakIndicator.textContent = String(snapshot.streak || 0);
         if (DOM.nextObjective) {
+            const distanceToCompletion = Math.max(0, totalTiles - completedTiles);
             const objective = snapshot.hasFullCard
-                ? "Next objective: Celebrate and share your recap"
+                ? t("gameplay.objectiveDone")
                 : snapshot.nextBestTile
-                    ? `Next objective: Target tile #${snapshot.nextBestTile}`
-                    : "Next objective: Start a line";
+                    ? t("gameplay.objectiveLock", { tile: snapshot.nextBestTile, remaining: distanceToCompletion })
+                    : t("gameplay.objectiveStart", { remaining: distanceToCompletion });
             DOM.nextObjective.textContent = objective;
         }
         if (DOM.roomProgressFill) DOM.roomProgressFill.style.width = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
         if (DOM.roomProgressValue) DOM.roomProgressValue.textContent = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+        if (snapshot.hasFullCard) {
+            this.emitGuideBeat("celebrate", { nudge: "Full card complete. Open your victory recap." }, { speak: false, minGapMs: 6000 });
+        } else if (snapshot.nextBestTile) {
+            const oneAway = lineCount > 0 ? "You are one-away on at least one line." : "Build your first line.";
+            this.emitGuideBeat("focus", { nextTile: snapshot.nextBestTile, rowHint: oneAway }, { speak: false, minGapMs: 5200 });
+        }
     },
 
-    renderBadgePreviews(badges) {
+    renderBadgePreviews(badges, tokens = []) {
         if (!DOM.badgePreviewList) return;
         DOM.badgePreviewList.innerHTML = "";
-        if (!badges.length) {
-            DOM.badgePreviewList.innerHTML = '<span class="text-xs text-amber-100">Keep scanning to unlock badges.</span>';
+        const timeline = [
+            ...(Array.isArray(badges) ? badges.map((badge) => ({ ...badge, collectibleType: "badge" })) : []),
+            ...(Array.isArray(tokens) ? tokens.map((token) => ({ ...token, collectibleType: "token" })) : [])
+        ].sort((a, b) => new Date(b.earnedAt || 0).getTime() - new Date(a.earnedAt || 0).getTime());
+        if (!timeline.length) {
+            DOM.badgePreviewList.innerHTML = `<span class="text-xs text-amber-100">${t("scan.scanning")}</span>`;
             return;
         }
-        badges.slice(-6).forEach((badge) => {
+        timeline.slice(0, 6).forEach((collectible) => {
+            const normalized = collectible.collectibleType === "badge" && window.WinBadges && typeof window.WinBadges.localizeBadgeDefinition === "function"
+                ? window.WinBadges.localizeBadgeDefinition(collectible, gameState.settings.locale)
+                : collectible;
+            const prefix = collectible.collectibleType === "token" ? "NFT" : "Badge";
             const badgeEl = document.createElement("div");
             badgeEl.className = "glass-badge bg-white/5 text-amber-100";
-            badgeEl.textContent = `${badge.icon} ${badge.name}`;
+            badgeEl.textContent = `${normalized.icon} ${normalized.name} · ${prefix}`;
             DOM.badgePreviewList.appendChild(badgeEl);
         });
     },
 
-    renderBadgeGallery(badges) {
+    renderBadgeGallery(badges, tokens = []) {
         if (!DOM.badgeGallery) return;
         DOM.badgeGallery.innerHTML = "";
-        const defs = (window.WinBadges && Array.isArray(window.WinBadges.BADGES)) ? window.WinBadges.BADGES : [];
-        const earned = new Set((badges || []).map((badge) => badge.id));
-        const source = defs.length ? defs : (badges || []);
-        if (!source.length) {
+        const badgeDefs = (window.WinBadges && Array.isArray(window.WinBadges.BADGES)) ? window.WinBadges.BADGES : [];
+        const tokenDefs = (window.GamificationEngine && Array.isArray(window.GamificationEngine.TOKEN_DEFINITIONS))
+            ? window.GamificationEngine.TOKEN_DEFINITIONS
+            : [];
+        const earnedBadges = new Map((badges || []).map((badge) => [badge.id, badge]));
+        const earnedTokens = new Map((tokens || []).map((token) => [token.id, token]));
+        const badgeSource = badgeDefs.length ? badgeDefs : (badges || []);
+        const seasonalTokenSource = Array.from(earnedTokens.values()).filter((token) => !tokenDefs.some((def) => def.id === token.id));
+        const tokenSource = [...tokenDefs, ...seasonalTokenSource];
+        if (!badgeSource.length && !tokenSource.length) {
             DOM.badgeGallery.innerHTML = '<div class="goal-card"><p class="goal-card__title">No badges yet</p><p class="goal-card__meta">Complete scans to unlock your shelf.</p></div>';
             return;
         }
-        source.slice(0, 9).forEach((badgeDef) => {
-            const icon = badgeDef.icon && badgeDef.icon.length <= 2 ? badgeDef.icon : "🏅";
-            const title = badgeDef.name || badgeDef.id || "Badge";
-            const rarity = badgeDef.rarity || "common";
-            const unlocked = earned.has(badgeDef.id);
+        const gallerySource = [
+            ...badgeSource.slice(0, 9).map((def) => ({ ...def, collectibleType: "badge" })),
+            ...tokenSource.slice(0, 6).map((def) => ({ ...def, collectibleType: "token" }))
+        ];
+        gallerySource.forEach((entry) => {
+            const localizedBadge = entry.collectibleType === "badge" && window.WinBadges && typeof window.WinBadges.localizeBadgeDefinition === "function"
+                ? window.WinBadges.localizeBadgeDefinition(entry, gameState.settings.locale)
+                : entry;
+            const icon = localizedBadge.icon && localizedBadge.icon.length <= 2 ? localizedBadge.icon : "🏅";
+            const title = localizedBadge.name || entry.name || entry.id || "Collectible";
+            const rarity = entry.rarity || "common";
+            const unlocked = entry.collectibleType === "badge" ? earnedBadges.has(entry.id) : earnedTokens.has(entry.id);
+            const earnedCollectible = entry.collectibleType === "badge" ? earnedBadges.get(entry.id) : earnedTokens.get(entry.id);
+            const unlockedAt = earnedCollectible && earnedCollectible.earnedAt
+                ? new Date(earnedCollectible.earnedAt).toLocaleDateString()
+                : "";
+            const utilityTag = entry.collectibleType === "token" && entry.utility ? ` • ${entry.utility}` : "";
+            const typeLabel = entry.collectibleType === "token" ? "NFT" : "Badge";
             const node = window.DesignSystem && window.DesignSystem.BadgeIcon
-                ? window.DesignSystem.BadgeIcon({ icon, rarity, label: `${title}${unlocked ? "" : " (locked)"}` })
+                ? window.DesignSystem.BadgeIcon({
+                    icon,
+                    rarity,
+                    label: `${typeLabel} · ${title}${unlockedAt ? ` • ${unlockedAt}` : ""}${unlocked ? utilityTag : " (locked)"}`
+                })
                 : document.createElement("div");
             if (!unlocked) node.style.opacity = "0.55";
             DOM.badgeGallery.appendChild(node);
         });
         if (DOM.badgeCountPill) {
-            DOM.badgeCountPill.textContent = `${earned.size} unlocked`;
+            DOM.badgeCountPill.textContent = `${earnedBadges.size} badges · ${earnedTokens.size} NFTs`;
+        }
+        if (DOM.badgePreviewList && window.DesignSystem && window.DesignSystem.ProgressBar) {
+            const progressWrap = document.createElement("div");
+            progressWrap.className = "w-full";
+            const unlockedTotal = earnedBadges.size + earnedTokens.size;
+            const maxTotal = Math.max(1, badgeSource.length + tokenSource.length);
+            progressWrap.appendChild(window.DesignSystem.ProgressBar({
+                label: "Reward progress",
+                value: unlockedTotal,
+                max: maxTotal,
+                tone: unlockedTotal >= 5 ? "success" : "accent",
+                compact: true
+            }));
+            DOM.badgePreviewList.appendChild(progressWrap);
         }
     },
 
@@ -666,14 +1022,17 @@ const GameManager = {
         if (!DOM.goalCards) return;
         const completedTiles = Number(snapshot.completedTiles.length || 0);
         const totalTiles = gameState.settings.cardSize * gameState.settings.cardSize;
+        const lineCount = Number(snapshot.bingoLines.length || 0);
+        const streak = Number(snapshot.streak || 0);
+        const hasHintFreeRun = Boolean(snapshot.scansWithHint === 0);
         const goals = [
             {
                 title: "Finish one line",
-                progress: `${snapshot.bingoLines.length > 0 ? "Done" : "In progress"}`
+                progress: lineCount > 0 ? "Done" : "In progress"
             },
             {
-                title: "Keep a 5-scan streak",
-                progress: `${Math.min(5, Number(snapshot.streak || 0))}/5`
+                title: "Keep a five-scan streak",
+                progress: `${Math.min(5, streak)}/5`
             },
             {
                 title: "Beat your last score",
@@ -682,6 +1041,14 @@ const GameManager = {
             {
                 title: "Complete full card",
                 progress: `${completedTiles}/${totalTiles}`
+            },
+            {
+                title: "Complete card with no hints",
+                progress: hasHintFreeRun ? "On track" : "Hints used"
+            },
+            {
+                title: "Discover a rare target",
+                progress: snapshot.lastRarityHit ? snapshot.lastRarityHit : "Hunt active"
             }
         ];
         DOM.goalCards.innerHTML = goals.map((goal) => `
@@ -694,6 +1061,7 @@ const GameManager = {
 
     renderReplayModeCards() {
         if (!DOM.replayModeCards) return;
+        const replayModes = getReplayModes();
         DOM.replayModeCards.innerHTML = replayModes.map((mode) => `
             <div class="replay-card">
                 <p class="replay-card__title">${mode.title}</p>
@@ -703,7 +1071,9 @@ const GameManager = {
     },
 
     renderProfileStats(snapshot) {
-        if (DOM.lifetimeBadges) DOM.lifetimeBadges.textContent = String(snapshot.lifetime.badges.length);
+        const lifetimeBadges = Number(snapshot.lifetime.badges.length || 0);
+        const lifetimeTokens = Number(snapshot.lifetime.nftTokens && snapshot.lifetime.nftTokens.length || 0);
+        if (DOM.lifetimeBadges) DOM.lifetimeBadges.textContent = String(lifetimeBadges + lifetimeTokens);
         if (DOM.totalMuseums) DOM.totalMuseums.textContent = String(snapshot.lifetime.totalMuseumsCompleted || 0);
         if (DOM.totalScans) DOM.totalScans.textContent = String(snapshot.lifetime.totalScans || 0);
         if (DOM.bestStreak) DOM.bestStreak.textContent = String(snapshot.lifetime.bestStreak || 0);
@@ -721,7 +1091,16 @@ const GameManager = {
         events.slice(0, 8).forEach((event) => {
             const item = document.createElement("div");
             item.className = "glass-card bg-white/5 p-2 text-xs text-amber-100";
-            item.textContent = `${event.type} • ${new Date(event.timestamp).toLocaleTimeString()}`;
+            const guide = this.getActiveGuide();
+            const typeLabel = String(event.type || "activity").replaceAll("_", " ");
+            const readable = typeLabel === "tile_validated"
+                ? "Discovery confirmed"
+                : typeLabel === "line_completed"
+                    ? "Orbital line completed"
+                    : typeLabel === "bingo_complete"
+                        ? "Mission bingo complete"
+                        : typeLabel;
+            item.textContent = `${guide ? `${guide.name}: ` : ""}${readable} • ${new Date(event.timestamp).toLocaleTimeString()}`;
             DOM.activityFeed.appendChild(item);
         });
     },
@@ -730,37 +1109,58 @@ const GameManager = {
         if (!DOM.successModal) return;
         DOM.successModal.classList.remove("success-line", "success-bingo", "success-full-card");
         const details = this.getArtifactStory(item);
-        if (DOM.successArtwork) DOM.successArtwork.textContent = item.name;
-        if (DOM.successArtist) DOM.successArtist.textContent = `${details.era} • ${details.origin}`;
+        const mission = this.getSpaceMissionContext(item);
+        const localizedArtifact = this.getLocalizedArtifact(item);
+        if (DOM.successArtwork) DOM.successArtwork.textContent = localizedArtifact.title || item.name;
+        if (DOM.successArtist) DOM.successArtist.textContent = `${mission.zone} • ${details.era}`;
         if (DOM.successPoints) DOM.successPoints.textContent = `+${scoringResult.pointsEarned}`;
         if (DOM.successStreakBonus) DOM.successStreakBonus.textContent = `+${scoringResult.streakBonus}`;
         const isBonusArtifact = item.category === "Bonus artifact" || item.rarity === "rare" || item.rarity === "legendary";
-        let variant = "Artifact found";
-        let rewardLine = `Material: ${details.material} • ${details.category}`;
+        let variant = "Discovery confirmed";
+        let rewardLine = `Signal locked • ${details.category} • ${details.material}`;
+        let guideBeat = "celebrate";
         if (scoringResult.fullCardBonus > 0) {
-            variant = "Full card completed";
-            rewardLine = "Massive bonus! Full card celebration unlocked.";
+            variant = "Mission board completed";
+            rewardLine = "All orbital slots docked. Commander recap unlocked.";
             DOM.successModal.classList.add("success-full-card");
+            guideBeat = "recap";
         } else if (scoringResult.completionState === "blackout" || scoringResult.hasFullCard) {
-            variant = "Bingo completed";
-            rewardLine = "Bingo achieved. Recap and rewards are ready.";
+            variant = "Bingo trajectory complete";
+            rewardLine = "Mission bingo reached. Recap and rewards are ready.";
             DOM.successModal.classList.add("success-bingo");
+            guideBeat = "celebrate";
         } else if (scoringResult.firstLineBonus > 0) {
-            variant = "Line completed";
-            rewardLine = "Line bonus earned. You are closing in on bingo.";
+            variant = "Orbital line completed";
+            rewardLine = "Docking line secured. You are closing in on mission bingo.";
             DOM.successModal.classList.add("success-line");
+            guideBeat = "focus";
         } else if (isBonusArtifact) {
-            variant = "Bonus artifact found";
-            rewardLine = `Rare find secured. ${details.material} from ${details.origin}.`;
+            variant = "Bonus discovery";
+            rewardLine = `Rare signal acquired in ${mission.zone}. ${details.material} from ${details.origin}.`;
+            guideBeat = "celebrate";
         } else if ((scoringResult.streak || 0) >= 3) {
-            variant = "Streak continued";
-            rewardLine = `Streak x${scoringResult.streak}. Keep momentum for bigger rewards.`;
+            variant = "Streak maintained";
+            rewardLine = `Signal chain x${scoringResult.streak}. Keep momentum for bigger rewards.`;
+            guideBeat = "encourage";
+        }
+        const guideLine = this.emitGuideBeat(guideBeat, {
+            itemName: item.name,
+            nudge: item.fact,
+            rowHint: scoringResult.nextBestTile ? `Try tile #${scoringResult.nextBestTile} next.` : ""
+        }, { force: true, speak: false });
+        if (guideLine) {
+            rewardLine = `${guideLine} ${item.fact}`;
         }
         if (DOM.successVariant) DOM.successVariant.textContent = variant;
         if (DOM.successRewardLine) DOM.successRewardLine.textContent = rewardLine;
         if (DOM.successBadge) {
+            const firstToken = scoringResult.unlockedTokens && scoringResult.unlockedTokens[0];
             const firstBadge = scoringResult.unlockedBadges && scoringResult.unlockedBadges[0];
-            if (firstBadge) {
+            if (firstToken) {
+                DOM.successBadge.classList.remove("hidden");
+                DOM.successBadge.innerHTML = `<p class="text-xs text-amber-200">NFT TOKEN UNLOCKED</p><p class="text-amber-100 font-bold">${firstToken.icon || "🪙"} ${firstToken.name}</p><p class="text-[11px] text-cyan-200">${firstToken.utility || "Collectible ready to display."}</p>`;
+                if (DOM.successVariant) DOM.successVariant.textContent = "NFT collectible unlocked";
+            } else if (firstBadge) {
                 DOM.successBadge.classList.remove("hidden");
                 DOM.successBadge.innerHTML = `<p class="text-xs text-amber-200">BADGE UNLOCKED</p><p class="text-amber-100 font-bold">${firstBadge.icon} ${firstBadge.name}</p>`;
                 if (DOM.successVariant) DOM.successVariant.textContent = "Badge unlocked";
@@ -780,10 +1180,24 @@ const GameManager = {
 
     showBadgeToast(badge) {
         if (!DOM.badgeToast || !badge) return;
-        DOM.badgeToast.innerHTML = `<p class="text-xs text-amber-200">NEW BADGE</p><p class="font-bold text-amber-100">${badge.icon} ${badge.name}</p><p class="text-[11px] text-amber-200">${badge.description}</p>`;
+        const localizedBadge = window.WinBadges && typeof window.WinBadges.localizeBadgeDefinition === "function"
+            ? window.WinBadges.localizeBadgeDefinition(badge, gameState.settings.locale)
+            : badge;
+        const guide = this.getActiveGuide();
+        const earnedLine = guide ? `${guide.name}: You earned this because your recent scans were consistent.` : "You earned this badge.";
+        DOM.badgeToast.innerHTML = `<p class="text-xs text-amber-200">${t("rewards.newBadge")}</p><p class="font-bold text-amber-100">${localizedBadge.icon} ${localizedBadge.name}</p><p class="text-[11px] text-amber-200">${localizedBadge.description}</p><p class="text-[11px] text-cyan-200 mt-1">${earnedLine}</p>`;
         DOM.badgeToast.classList.remove("hidden");
         this.createParticles(window.innerWidth - 80, 120, "#fbbf24", 15);
         setTimeout(() => DOM.badgeToast.classList.add("hidden"), 2600);
+    },
+
+    showTokenToast(token) {
+        if (!DOM.badgeToast || !token) return;
+        const utilityLine = token.utility || "Collectible ready in your profile gallery.";
+        DOM.badgeToast.innerHTML = `<p class="text-xs text-amber-200">New NFT collectible</p><p class="font-bold text-amber-100">${token.icon || "🪙"} ${token.name}</p><p class="text-[11px] text-amber-200">${token.description || ""}</p><p class="text-[11px] text-cyan-200 mt-1">${utilityLine}</p>`;
+        DOM.badgeToast.classList.remove("hidden");
+        this.createParticles(window.innerWidth - 80, 120, "#22d3ee", 18);
+        setTimeout(() => DOM.badgeToast.classList.add("hidden"), 3000);
     },
 
     showRankMovement(rankDelta) {
@@ -891,6 +1305,9 @@ const GameManager = {
         if (scoreResult && Array.isArray(scoreResult.unlockedBadges) && scoreResult.unlockedBadges[0]) {
             enriched.badgeUnlockedId = scoreResult.unlockedBadges[0].id;
         }
+        if (scoreResult && Array.isArray(scoreResult.unlockedTokens) && scoreResult.unlockedTokens[0]) {
+            enriched.tokenUnlockedId = scoreResult.unlockedTokens[0].id;
+        }
         return enriched;
     },
 
@@ -927,6 +1344,16 @@ const GameManager = {
 
     init() {
         loadSettings();
+        if (localStorage.getItem("museumBingoTutorialSeen") && gameState.settings.guideSessionType === "first_time") {
+            gameState.settings.guideSessionType = "returning";
+        }
+        gameState.guide.activeGuideId = gameState.settings.selectedGuideId || gameState.guide.activeGuideId;
+        if (window.I18n && typeof window.I18n.setLocale === "function") {
+            window.I18n.setLocale(gameState.settings.locale || window.I18n.getLocale());
+        }
+        if (!gameState.settings.roomLanguage) {
+            gameState.settings.roomLanguage = gameState.settings.locale || "en";
+        }
         document.body.classList.toggle("high-contrast", gameState.settings.highContrast);
         document.body.classList.toggle("reduced-motion", gameState.settings.reducedMotion);
         if (!DOM.board || !DOM.statusMsg) {
@@ -935,12 +1362,25 @@ const GameManager = {
         }
         this.initGame();
         this.bindEvents();
+        this.updateLocaleUi();
         this.renderReplayModeCards();
         this.renderGoalCards({ completedTiles: [], bingoLines: [], streak: 0, points: 0 });
         this.initGamification();
+        this.renderGuideSurface();
         this.loadLeaderboard();
+        this.emitGuideBeat("welcome", { nudge: "I can help with mission setup, scans, and recap." }, { force: true, speak: false });
         if (!localStorage.getItem("museumBingoTutorialSeen")) {
             this.showTutorialStep();
+        }
+        if (window.I18n && typeof window.I18n.onChange === "function") {
+            window.I18n.onChange(() => {
+                this.updateLocaleUi();
+                this.renderGamification();
+                this.renderClueDeck();
+                this.renderObjectiveSurface();
+                this.loadLeaderboard();
+                this.renderGuideSurface();
+            });
         }
         setInterval(this.updateStats.bind(this), 1000);
     },
@@ -954,6 +1394,98 @@ const GameManager = {
             console.warn("Riddle database unavailable, using fallback riddles:", err);
         }
         return ["Can you find this art piece?"];
+    },
+
+    initClueDeck(items) {
+        if (!window.ClueEngine || typeof window.ClueEngine.buildClueSet !== "function") {
+            gameState.clueDeck = [];
+            gameState.currentObjectiveId = null;
+            return;
+        }
+        gameState.clueDeck = window.ClueEngine.buildClueSet(items, {
+            difficulty: gameState.settings.difficultyMode === "challenge" ? "hard" : "standard"
+        });
+        const firstOpen = gameState.clueDeck.find((clue) => !clue.completed);
+        gameState.currentObjectiveId = firstOpen ? firstOpen.id : null;
+        this.renderClueDeck();
+        this.renderObjectiveSurface();
+    },
+
+    getCurrentObjective() {
+        if (!window.ClueEngine || typeof window.ClueEngine.getCurrentObjective !== "function") {
+            return null;
+        }
+        if (gameState.currentObjectiveId) {
+            const selected = gameState.clueDeck.find((clue) => clue.id === gameState.currentObjectiveId && !clue.completed);
+            if (selected) {
+                return {
+                    title: selected.title,
+                    clueText: selected.clueText,
+                    actionLabel: selected.actionLabel,
+                    progress: `${Math.round((gameState.clueDeck.filter((clue) => clue.completed).length / Math.max(1, gameState.clueDeck.length)) * 100)}%`,
+                    clueId: selected.id,
+                    tileIndex: selected.tileIndex,
+                    route: selected.route,
+                    category: selected.category,
+                    proximityLabel: window.ClueEngine.getClueSolveDistanceLabel(selected.proximity),
+                    proximity: selected.proximity
+                };
+            }
+        }
+        return window.ClueEngine.getCurrentObjective(gameState.clueDeck);
+    },
+
+    renderObjectiveSurface() {
+        const objective = this.getCurrentObjective();
+        if (!objective) return;
+        if (DOM.objectiveTitle) DOM.objectiveTitle.textContent = objective.title || t("gameplay.selectTilePrompt");
+        if (DOM.objectiveText) DOM.objectiveText.textContent = objective.clueText || t("scan.scanning");
+        if (DOM.objectiveRoute) {
+            const tone = objective.route === "bonus" ? "accent" : "warning";
+            DOM.objectiveRoute.className = `status-pill status-pill--${tone}`;
+            DOM.objectiveRoute.textContent = `${objective.route || "main"} route`;
+        }
+        if (DOM.objectiveProximity) DOM.objectiveProximity.textContent = objective.proximityLabel || t("scan.scanning");
+        if (DOM.objectiveProgress) DOM.objectiveProgress.textContent = objective.progress || "0%";
+        if (DOM.objectiveAction) DOM.objectiveAction.textContent = objective.actionLabel || t("scan.scanning");
+        if (DOM.objectiveProgressFill) {
+            const progressValue = Number.parseInt(String(objective.progress || "0"), 10);
+            const safeProgress = Number.isFinite(progressValue) ? Math.max(0, Math.min(progressValue, 100)) : 0;
+            DOM.objectiveProgressFill.style.width = `${safeProgress}%`;
+        }
+    },
+
+    renderClueDeck() {
+        if (!DOM.clueScroll) return;
+        DOM.clueScroll.innerHTML = "";
+        if (!Array.isArray(gameState.clueDeck) || !gameState.clueDeck.length) {
+            DOM.clueScroll.innerHTML = `<div class="goal-card"><p class="goal-card__title">${t("gameplay.noClues")}</p><p class="goal-card__meta">${t("gameplay.resetTrail")}</p></div>`;
+            return;
+        }
+        gameState.clueDeck.forEach((clue) => {
+            const selectedTileIndex = Number(gameState.selectedCell && gameState.selectedCell.element && gameState.selectedCell.element.dataset.tileIndex || 0);
+            const isSelected = selectedTileIndex > 0 && Number(clue.tileIndex) === selectedTileIndex;
+            const wrapper = window.DesignSystem && window.DesignSystem.ClueCard
+                ? window.DesignSystem.ClueCard({
+                    title: clue.title,
+                    clueText: clue.clueText,
+                    category: clue.category,
+                    difficulty: clue.difficulty,
+                    route: clue.route,
+                    actionLabel: clue.completed ? "Completed" : clue.actionLabel,
+                    whyItMatters: clue.whyItMatters,
+                    whatToLookFor: clue.whatToLookFor,
+                    proximityLabel: window.ClueEngine ? window.ClueEngine.getClueSolveDistanceLabel(clue.proximity) : "Searching"
+                })
+                : document.createElement("article");
+            if (!window.DesignSystem || !window.DesignSystem.ClueCard) {
+                wrapper.className = "goal-card";
+                wrapper.innerHTML = `<p class="goal-card__title">${clue.title}</p><p class="goal-card__meta">${clue.clueText}</p>`;
+            }
+            if (clue.completed) wrapper.classList.add("clue-card--completed");
+            if (isSelected) wrapper.classList.add("clue-card--active");
+            DOM.clueScroll.appendChild(wrapper);
+        });
     },
 
     loadMockUser(uid) {
@@ -991,6 +1523,58 @@ const GameManager = {
         return mockLeaders;
     },
 
+    renderRoomStatus(snapshot) {
+        if (!DOM.roomStatus) return;
+        const entries = gameState.syncService ? gameState.syncService.getRoomEntries() : [];
+        DOM.roomStatus.innerHTML = "";
+        if (!entries.length) {
+            DOM.roomStatus.innerHTML = `<div class="goal-card"><p class="goal-card__title">${t("multiplayer.lobbyReady")}</p><p class="goal-card__meta">${t("multiplayer.invitePlayers")}</p></div>`;
+            this.emitGuideBeat("welcome", { nudge: "Room is ready. Invite players and choose your mission pace." }, { speak: false, minGapMs: 9000 });
+            return;
+        }
+        if (window.DesignSystem && window.DesignSystem.MultiLingualNotice && gameState.settings.roomLanguage !== gameState.settings.locale) {
+            const notice = window.DesignSystem.MultiLingualNotice({
+                title: t("multiplayer.translatedBadge"),
+                body: t("multiplayer.languageMismatch"),
+                tone: "warning"
+            });
+            DOM.roomStatus.appendChild(notice);
+        }
+        const sorted = [...entries].sort((a, b) => Number(b.points || 0) - Number(a.points || 0));
+        sorted.slice(0, 6).forEach((entry) => {
+            const initials = (entry.playerName || "P")
+                .split(" ")
+                .map((part) => part[0] || "")
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
+            const card = document.createElement("div");
+            const isCurrent = entry.userId === gameState.currentUser.uid;
+            card.className = `glass-card p-3 min-w-[168px] ${isCurrent ? "border-emerald-300/50" : ""}`;
+            card.innerHTML = `
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="avatar-ring ${isCurrent ? "avatar-ring--active" : ""}"><span>${initials}</span></div>
+                    <p class="text-xs text-amber-100 font-bold">${entry.playerName || t("multiplayer.playerFallback")}</p>
+                    <span class="language-pill">${String(entry.locale || gameState.settings.roomLanguage || "en").toUpperCase()}</span>
+                </div>
+                <p class="text-[11px] text-amber-200">${entry.completedTiles || 0} tiles • ${entry.points || 0} pts</p>
+                <p class="text-[10px] text-amber-100">${String(entry.bingoStatus || "launching").replaceAll("_", " ")}</p>
+            `;
+            DOM.roomStatus.appendChild(card);
+        });
+        const recentWinEvent = gameState.winLadderEvents[0];
+        if (recentWinEvent && recentWinEvent.type) {
+            const log = document.createElement("div");
+            log.className = "goal-card min-w-[210px]";
+            const guide = this.getActiveGuide();
+            log.innerHTML = `
+                <p class="goal-card__title">Mission log</p>
+                <p class="goal-card__meta">${guide ? `${guide.name}: ` : ""}${String(recentWinEvent.type).replaceAll("_", " ")} • ${new Date(recentWinEvent.timestamp || Date.now()).toLocaleTimeString()}</p>
+            `;
+            DOM.roomStatus.appendChild(log);
+        }
+    },
+
     loadLeaderboard() {
         const list = document.getElementById("leaderboard-list");
         if (!list) return;
@@ -1012,7 +1596,7 @@ const GameManager = {
         if (!merged.length) {
             const item = document.createElement("div");
             item.className = "p-3 text-amber-100 text-sm";
-            item.textContent = "Leaderboard unavailable right now.";
+            item.textContent = t("multiplayer.leaderboardUnavailable");
             list.appendChild(item);
             return;
         }
@@ -1021,6 +1605,10 @@ const GameManager = {
             const isCurrent = player.userId === gameState.currentUser.uid;
             const streak = Number(player.streak) || 0;
             const bingoStatus = String(player.bingoStatus || "no_line").replaceAll("_", " ");
+            const milestone = Math.ceil((Number(player.points || 0) + 1) / 250) * 250;
+            const toMilestone = Math.max(0, milestone - Number(player.points || 0));
+            const totalTiles = gameState.settings.cardSize * gameState.settings.cardSize;
+            const toBingo = Math.max(0, totalTiles - Number(player.completedTiles || 0));
             const initials = (player.playerName || player.displayName || "P")
                 .split(" ")
                 .map((part) => part[0] || "")
@@ -1033,12 +1621,15 @@ const GameManager = {
                     <span class="text-amber-300 font-bold">#${i + 1}</span>
                     <div class="avatar-ring ${isCurrent ? "avatar-ring--active" : ""}"><span>${initials}</span></div>
                     <span class="text-white">${player.playerName || player.displayName || "Player"}</span>
-                    ${isCurrent ? '<span class="text-[10px] text-green-300">● NOW PLAYING</span>' : ""}
+                    <span class="language-pill">${String(player.locale || gameState.settings.roomLanguage || "en").toUpperCase()}</span>
+                    ${isCurrent ? `<span class="text-[10px] text-green-300">● ${t("multiplayer.nowPlaying")}</span>` : ""}
                 </div>
                 <div class="text-right">
                     <span class="text-amber-400 font-black block">${player.points || 0} pts</span>
                     <span class="text-[10px] text-amber-100 block">${player.completedTiles || 0} tiles • 🔥${streak}</span>
                     <span class="text-[10px] text-amber-200 block">${bingoStatus}</span>
+                    <span class="text-[10px] text-indigo-200 block">${t("multiplayer.milestoneToGo", { points: toMilestone })}</span>
+                    <span class="text-[10px] text-cyan-200 block">${toBingo} to bingo</span>
                 </div>
             `;
             list.appendChild(item);
@@ -1091,16 +1682,18 @@ const GameManager = {
         }
         const size = gameState.settings.cardSize;
         const items = this.getCurrentCardItems();
+        this.initClueDeck(items);
         DOM.board.innerHTML = "";
         DOM.board.className = `col-span-3 grid ${size === 4 ? "grid-cols-4 gap-4" : "grid-cols-3 gap-6"} ${gameState.settings.compactMode ? "compact-mode" : ""}`;
         items.forEach((item, index) => {
+            const localizedArtifact = this.getLocalizedArtifact(item);
             const cell = document.createElement("div");
             cell.className = "cell cell-enter";
             cell.dataset.id = String(item.id);
             cell.dataset.tileIndex = String(index + 1);
             const isFound = gameState.foundItems.has(item.id);
             if (isFound) cell.classList.add("found");
-            cell.innerHTML = `<span>${item.emoji || "🧩"}</span><div class="cell-name">${item.name}</div><div class="tile-meta">#${index + 1}</div>`;
+            cell.innerHTML = `<span>${item.emoji || "🧩"}</span><div class="cell-name text-fit">${localizedArtifact.title}</div><div class="tile-meta">#${index + 1}</div>`;
             cell.onclick = () => this.selectCell(cell, item);
             DOM.board.appendChild(cell);
             setTimeout(() => cell.classList.remove("cell-enter"), 320);
@@ -1117,6 +1710,13 @@ const GameManager = {
     },
 
     bindEvents() {
+        if (DOM.localeSwitcher && window.I18n && typeof window.I18n.setLocale === "function") {
+            DOM.localeSwitcher.onchange = (e) => {
+                window.I18n.setLocale(e.target.value);
+                gameState.settings.locale = window.I18n.getLocale();
+                saveSettings();
+            };
+        }
         if (DOM.difficultyMode) {
             DOM.difficultyMode.value = gameState.settings.difficultyMode;
             DOM.difficultyMode.onchange = (e) => {
@@ -1129,8 +1729,13 @@ const GameManager = {
             DOM.roomMode.value = gameState.settings.roomMode;
             DOM.roomMode.onchange = (e) => {
                 gameState.settings.roomMode = e.target.value;
+                if (gameState.settings.roomMode === "family") gameState.settings.guideSessionType = "family";
+                else if (gameState.settings.roomMode === "solo") gameState.settings.guideSessionType = "solo";
+                else gameState.settings.guideSessionType = "competitive";
+                if (DOM.guideSessionType) DOM.guideSessionType.value = gameState.settings.guideSessionType;
                 saveSettings();
                 this.initGamification();
+                this.renderGuideSurface();
             };
         }
         if (DOM.cardSize) {
@@ -1151,6 +1756,31 @@ const GameManager = {
                 gameState.settings.dailyChallengeEnabled = Boolean(e.target.checked);
                 saveSettings();
                 this.initGamification();
+            };
+        }
+        if (DOM.ageFriendlyToggle) {
+            DOM.ageFriendlyToggle.checked = gameState.settings.ageFriendlyMode;
+            DOM.ageFriendlyToggle.onchange = (e) => {
+                gameState.settings.ageFriendlyMode = Boolean(e.target.checked);
+                saveSettings();
+                this.renderGuideSurface();
+            };
+        }
+        if (DOM.guideSessionType) {
+            DOM.guideSessionType.value = gameState.settings.guideSessionType;
+            DOM.guideSessionType.onchange = (e) => {
+                gameState.settings.guideSessionType = e.target.value;
+                saveSettings();
+                this.renderGuideSurface();
+                this.emitGuideBeat("explain", { nudge: "I will adapt my guidance to this session mode." }, { force: true, speak: false });
+            };
+        }
+        if (DOM.guideEnergy) {
+            DOM.guideEnergy.value = gameState.settings.guideEnergy;
+            DOM.guideEnergy.onchange = (e) => {
+                gameState.settings.guideEnergy = e.target.value;
+                saveSettings();
+                this.renderGuideSurface();
             };
         }
         if (DOM.compactModeToggle) {
@@ -1193,7 +1823,10 @@ const GameManager = {
         }
         if (DOM.helpBtn) {
             DOM.helpBtn.onclick = () => {
-                this.setStatusMessage("Need help? Hold steady, move closer, reduce glare, and try a slight angle change.");
+                const tip = this.emitGuideBeat("hint", {
+                    hintAction: "Hold steady, move closer, reduce glare, and try a slight angle change."
+                }, { force: true, speak: false });
+                this.setStatusMessage(tip ? `🧭 ${tip}` : "Need help? Hold steady, move closer, reduce glare, and try a slight angle change.");
             };
         }
         if (DOM.themeSelect) {
@@ -1204,6 +1837,7 @@ const GameManager = {
                 gameState.currentCardItems = [];
                 this.initGame();
                 this.initGamification();
+                this.renderGuideSurface();
             };
         }
         if (DOM.viewPassportBtn) {
@@ -1243,7 +1877,7 @@ const GameManager = {
                     if (navigator.share) await navigator.share({ title: "Museum Bingo", text });
                     else if (navigator.clipboard && navigator.clipboard.writeText) {
                         await navigator.clipboard.writeText(text);
-                        this.setStatusMessage("Share text copied to clipboard.");
+                        this.setStatusMessage(t("rewards.shareCopied"));
                     }
                 } catch (err) {
                     console.warn("Share action was cancelled or unavailable:", err);
@@ -1257,10 +1891,11 @@ const GameManager = {
             if (now - gameState.nearMatchPlayedAt < 1200) return;
             gameState.nearMatchPlayedAt = now;
             playSound(720, "triangle", 0.09, 0.06);
-            this.setScanState("almost", "Almost recognized", "accent");
+            this.setScanState("almost", t("scan.almostRecognized"), "accent");
             if (DOM.scanGuidance && event && event.detail && Number.isFinite(event.detail.confidence)) {
-                DOM.scanGuidance.textContent = `Near match (${event.detail.confidence}%). Hold steady and confirm when ready.`;
+                DOM.scanGuidance.textContent = `${t("scan.almostRecognized")} (${event.detail.confidence}%). ${t("scan.guidanceAlmost")}`;
             }
+            this.emitGuideBeat("encourage", { nudge: "Great progress. One clean frame should lock it." }, { speak: false });
         });
         window.addEventListener("beforeunload", this.cleanupCamera.bind(this));
     },
@@ -1271,8 +1906,21 @@ const GameManager = {
         document.querySelectorAll(".cell").forEach((c) => c.classList.remove("active"));
         element.classList.add("active");
         gameState.selectedCell = { element, item };
+        this.setScanState("mystery-preview", t("scan.mysteryTarget"), "accent");
+        const clue = gameState.clueDeck.find((entry) => Number(entry.tileIndex) === Number(element.dataset.tileIndex));
+        if (clue) gameState.currentObjectiveId = clue.id;
         this.showRiddle(item.id);
-        this.setStatusMessage(`<span class="text-lg">🎯</span> Find the <strong>${item.name}</strong>!`);
+        this.renderObjectiveSurface();
+        this.renderClueDeck();
+        const localizedArtifact = this.getLocalizedArtifact(item);
+        const guideLine = this.emitGuideBeat("focus", {
+            itemName: localizedArtifact.title || item.name,
+            nextTile: Number(element.dataset.tileIndex || 0),
+            nudge: "Find the key shape, then confirm for points."
+        }, { speak: false, force: true });
+        this.setStatusMessage(guideLine
+            ? `<span class="text-lg">🧭</span> ${guideLine}`
+            : `<span class="text-lg">🎯</span> ${t("gameplay.tileFound", { name: localizedArtifact.title || item.name })}`);
     },
 
     showRiddle(artId) {
@@ -1287,28 +1935,38 @@ const GameManager = {
     showNextRiddle() {
         if (!gameState.selectedCell) return;
         gameState.usedHintSinceLastScan = true;
-        this.setScanState("hint-active", "Hint active", "warning");
+        this.setScanState("hint-active", t("scan.hintActive"), "warning");
         if (gameState.gamification) {
             gameState.gamification.onHintUsed({
                 tileId: Number(gameState.selectedCell.element.dataset.tileIndex || 0),
                 reason: "next_riddle"
             });
         }
+        if (window.ClueEngine && typeof window.ClueEngine.bumpHintLevel === "function") {
+            const tileIndex = Number(gameState.selectedCell.element.dataset.tileIndex || 0);
+            const clue = gameState.clueDeck.find((entry) => Number(entry.tileIndex) === tileIndex);
+            if (clue) {
+                gameState.clueDeck = window.ClueEngine.bumpHintLevel(gameState.clueDeck, clue.id);
+                this.renderClueDeck();
+                this.renderObjectiveSurface();
+            }
+        }
         const artId = gameState.selectedCell.item.id;
         const riddles = this.getRiddlesForArt(artId);
         gameState.currentRiddleIndex[artId] = (gameState.currentRiddleIndex[artId] + 1) % riddles.length;
         this.showRiddle(artId);
+        this.emitGuideBeat("hint", { hintAction: "Use this clue, then scan with the object centered." }, { speak: false });
     },
 
     async handleScanClick() {
         if (!gameState.selectedCell || !gameState.selectedCell.item) {
-            this.setStatusMessage("⚠️ Please select an art piece first!");
+            this.setStatusMessage(`⚠️ ${t("gameplay.noSelection")}`);
             return;
         }
         gameState.totalAttempts++;
         gameState.scanStartedAt = Date.now();
-        this.setScanState("scanning", "Scanning", "ar");
-        if (DOM.scanGuidance) DOM.scanGuidance.textContent = "Scanning... hold steady and frame the artwork.";
+        this.setScanState("aiming", t("scan.aiming"), "ar");
+        if (DOM.scanGuidance) DOM.scanGuidance.textContent = t("scan.guidanceAiming");
         if (DOM.confidenceFill) DOM.confidenceFill.style.width = "0%";
         this.setElementHidden(DOM.scannerOverlay, false);
         this.setElementHidden(DOM.artInfo, true);
@@ -1348,30 +2006,59 @@ const GameManager = {
         try {
             if (!gameState.selectedCell || !gameState.selectedCell.item) throw new Error("No selected target available for AI detection");
             if (typeof simulateAIDetection !== "function") throw new Error("AI detection engine is unavailable");
+            this.setScanState("scanning", t("scan.scanning"), "ar");
             const result = await simulateAIDetection(DOM.cameraFeed, DOM.detectionCanvas, gameState.selectedCell.item);
             const confidence = Number(result && result.confidence);
             const detectionCount = Number(result && result.detectionCount) || 0;
             if (!Number.isFinite(confidence)) throw new Error("AI detection returned invalid confidence");
             gameState.aiDetections += detectionCount;
+            gameState.scanProximity = Math.floor(Math.max(0, Math.min(confidence, 100)));
+            if (window.ClueEngine && typeof window.ClueEngine.updateClueProximity === "function" && gameState.selectedCell) {
+                const tileIndex = Number(gameState.selectedCell.element.dataset.tileIndex || 0);
+                const clue = gameState.clueDeck.find((entry) => Number(entry.tileIndex) === tileIndex);
+                if (clue) {
+                    gameState.clueDeck = window.ClueEngine.updateClueProximity(gameState.clueDeck, clue.id, gameState.scanProximity);
+                    this.renderObjectiveSurface();
+                    this.renderClueDeck();
+                }
+            }
             if (DOM.confidenceFill) DOM.confidenceFill.style.width = `${Math.floor(Math.max(0, Math.min(confidence, 100)))}%`;
             if (DOM.confidence) DOM.confidence.textContent = `${Math.floor(Math.max(0, Math.min(confidence, 100)))}%`;
+            if (gameState.isHeatVisionActive) {
+                this.updateHeatVisionHud({
+                    signal: confidence,
+                    confidence,
+                    target: gameState.selectedCell && gameState.selectedCell.item ? gameState.selectedCell.item.name : "Unknown"
+                });
+            }
             if (confidence >= 80) this.showDetectionResult();
             else {
                 const tileIndex = Number(gameState.selectedCell && gameState.selectedCell.element && gameState.selectedCell.element.dataset.tileIndex || 0);
                 if (gameState.gamification) gameState.gamification.onScanFailed({ reason: "confidence_low", confidence, tileId: tileIndex });
                 const fallback = this.getScanFallbackState(confidence);
                 this.setScanState(fallback.state, fallback.label, fallback.tone);
-                this.setStatusMessage(fallback.statusMessage);
+                const guideFallback = this.emitGuideBeat("hint", {
+                    hintAction: fallback.guidance,
+                    nudge: fallback.statusMessage
+                }, { speak: false, force: true });
+                this.setStatusMessage(guideFallback ? `🧭 ${guideFallback}` : fallback.statusMessage);
                 if (DOM.scanGuidance) DOM.scanGuidance.textContent = fallback.guidance;
+                if (gameState.isHeatVisionActive) {
+                    this.updateHeatVisionHud({
+                        signal: confidence,
+                        confidence,
+                        target: fallback.label
+                    });
+                }
                 this.closeScannerModal();
             }
         } catch (err) {
             const tileIndex = Number(gameState.selectedCell && gameState.selectedCell.element && gameState.selectedCell.element.dataset.tileIndex || 0);
             if (gameState.gamification) gameState.gamification.onScanFailed({ reason: "scanner_error", tileId: tileIndex });
             console.error("AI detection failed unexpectedly:", err);
-            this.setScanState("low-confidence", "Scanner error", "danger");
+            this.setScanState("low-confidence", t("scan.scannerError"), "danger");
             if (DOM.scanGuidance) DOM.scanGuidance.textContent = "Scanner error. Try another angle or restart scan.";
-            this.setStatusMessage("⚠️ Scanner unavailable right now. Please try again.");
+            this.setStatusMessage(`⚠️ ${t("scan.scannerError")}`);
             this.closeScannerModal();
         }
     },
@@ -1380,27 +2067,40 @@ const GameManager = {
         if (!gameState.selectedCell || !gameState.selectedCell.item) return;
         const item = gameState.selectedCell.item;
         const details = this.getArtifactStory(item);
-        this.setScanState("recognized", "Recognized", "success");
+        const localizedArtifact = this.getLocalizedArtifact(item);
+        gameState.selectedCell.element.classList.add("state-unconfirmed");
+        this.setScanState("success-burst", t("scan.signalLocked"), "success");
         if (DOM.artInfo) DOM.artInfo.classList.remove("hidden");
         if (DOM.artEmoji) DOM.artEmoji.textContent = item.emoji;
-        if (DOM.artName) DOM.artName.textContent = item.name;
-        if (DOM.artFact) DOM.artFact.textContent = `${item.fact} Era: ${details.era}. Origin: ${details.origin}. Material: ${details.material}.`;
+        if (DOM.artName) DOM.artName.textContent = localizedArtifact.title || item.name;
+        if (DOM.artFact) {
+            const fallback = localizedArtifact.translationState !== "complete" ? ` ${t("scan.fallbackMissingContent")}` : "";
+            DOM.artFact.textContent = `${localizedArtifact.details || `${item.fact} ${details.era} ${details.origin} ${details.material}`}${fallback}`;
+        }
         if (DOM.confirmBtn) DOM.confirmBtn.classList.remove("hidden");
-        if (DOM.scanGuidance) DOM.scanGuidance.textContent = "Match found. Confirm to validate this tile.";
-        if (typeof speakText === "function") speakText(`Found ${item.name}! ${item.fact}`, 0.85);
+        if (DOM.scanGuidance) DOM.scanGuidance.textContent = t("scan.recognized");
+        if (gameState.isHeatVisionActive) {
+            this.updateHeatVisionHud({ signal: 100, confidence: 100, target: "Signal locked" });
+        }
+        const guideLine = this.emitGuideBeat("explain", {
+            itemName: item.name,
+            nudge: `${item.fact} Confirm to lock this tile.`
+        }, { force: true });
+        if (!guideLine && typeof speakText === "function") speakText(t("gameplay.tileFound", { name: localizedArtifact.title || item.name }), 0.85);
     },
 
     async handleConfirmClick() {
         if (!gameState.selectedCell || !gameState.selectedCell.item) {
-            this.setStatusMessage("⚠️ No selected object to validate.");
+            this.setStatusMessage(`⚠️ ${t("gameplay.noSelection")}`);
             return;
         }
         if (DOM.confirmBtn) {
             DOM.confirmBtn.disabled = true;
-            DOM.confirmBtn.textContent = "VALIDATING...";
+            DOM.confirmBtn.textContent = t("gameplay.validating");
         }
         try {
             const item = gameState.selectedCell.item;
+            const localizedArtifact = this.getLocalizedArtifact(item);
             const hasValidator = window.TechnicalEngine && typeof window.TechnicalEngine.validateArtwork === "function";
             if (!hasValidator) throw new Error("Validation engine is unavailable");
             const validation = await window.TechnicalEngine.validateArtwork(null, item);
@@ -1408,8 +2108,14 @@ const GameManager = {
                 playGameSound("found");
                 gameState.foundItems.add(item.id);
                 gameState.successfulScans++;
+                gameState.selectedCell.element.classList.add("tile-dock");
                 gameState.selectedCell.element.classList.add("found");
                 gameState.selectedCell.element.classList.remove("active");
+                setTimeout(() => {
+                    if (gameState.selectedCell && gameState.selectedCell.element) {
+                        gameState.selectedCell.element.classList.remove("tile-dock");
+                    }
+                }, 620);
                 this.addExp(50);
                 this.stampPassport(item);
 
@@ -1434,8 +2140,15 @@ const GameManager = {
                 const snapshotAfter = gameState.gamification ? gameState.gamification.getStateSnapshot() : null;
 
                 gameState.usedHintSinceLastScan = false;
+                if (window.ClueEngine && typeof window.ClueEngine.markClueCompleted === "function") {
+                    gameState.clueDeck = window.ClueEngine.markClueCompleted(gameState.clueDeck, tileIndex);
+                    const nextOpen = gameState.clueDeck.find((clueEntry) => !clueEntry.completed);
+                    gameState.currentObjectiveId = nextOpen ? nextOpen.id : null;
+                    this.renderClueDeck();
+                    this.renderObjectiveSurface();
+                }
                 this.closeScannerModal();
-                this.setStatusMessage(`<span class="text-lg">✅</span> Great! You found the <strong>${item.name}</strong>!`);
+                this.setStatusMessage(`<span class="text-lg">✅</span> ${t("gameplay.tileFound", { name: localizedArtifact.title || item.name })}`);
                 if (DOM.riddlePanel) DOM.riddlePanel.classList.add("hidden");
                 this.updateStats();
                 this.checkWin();
@@ -1453,6 +2166,9 @@ const GameManager = {
                     this.syncRoomScore();
                     if (Array.isArray(scoreResult.unlockedBadges)) {
                         scoreResult.unlockedBadges.forEach((badge) => this.showBadgeToast(badge));
+                    }
+                    if (Array.isArray(scoreResult.unlockedTokens)) {
+                        scoreResult.unlockedTokens.forEach((token) => this.showTokenToast(token));
                     }
                     if ((winResult && winResult.reward && winResult.reward.confetti && winResult.reward.confetti !== "none")
                         || scoreResult.firstLineBonus > 0
@@ -1472,24 +2188,25 @@ const GameManager = {
             } else {
                 const tileIndex = Number(gameState.selectedCell.element.dataset.tileIndex || 0);
                 if (gameState.gamification) gameState.gamification.onScanFailed({ reason: "validator_rejected", tileId: tileIndex });
-                this.setStatusMessage("Not quite yet. Try a closer shot with less glare.");
+                this.setStatusMessage(t("scan.guidanceNoMatch"));
             }
         } catch (err) {
             const tileIndex = Number(gameState.selectedCell.element.dataset.tileIndex || 0);
             if (gameState.gamification) gameState.gamification.onScanFailed({ reason: "validator_error", tileId: tileIndex });
             console.error("Validation failed unexpectedly:", err);
-            this.setStatusMessage("⚠️ Validation service error. Please scan again.");
+            this.setStatusMessage(`⚠️ ${t("scan.scannerError")}`);
         } finally {
             if (DOM.confirmBtn) {
                 DOM.confirmBtn.disabled = false;
-                DOM.confirmBtn.textContent = "✓ FOUND IT!";
+                DOM.confirmBtn.textContent = t("gameplay.foundIt");
             }
         }
     },
 
     closeScannerModal() {
         this.setElementHidden(DOM.scannerOverlay, true);
-        this.setScanState("", "Scanning", "ar");
+        this.setScanState("", t("scan.scanning"), "ar");
+        document.querySelectorAll(".cell.state-unconfirmed").forEach((cell) => cell.classList.remove("state-unconfirmed"));
         this.stopCameraStream();
     },
 
@@ -1522,9 +2239,12 @@ const GameManager = {
         gameState.winLadderEvents = [];
         gameState.lastWinStates = [];
         gameState.sessionRecap = null;
+        gameState.clueDeck = [];
+        gameState.currentObjectiveId = null;
+        gameState.scanProximity = 0;
         this.initGame();
         this.initGamification();
-        this.setStatusMessage("👉 Select an art piece to begin your journey");
+        this.setStatusMessage(`👉 ${t("gameplay.selectTilePrompt")}`);
         if (DOM.riddlePanel) DOM.riddlePanel.classList.add("hidden");
         this.closeScannerModal();
         this.updateLevelUI();
@@ -1548,7 +2268,16 @@ const GameManager = {
         const snapshot = gameState.gamification ? gameState.gamification.getStateSnapshot() : null;
         const basePoints = snapshot ? snapshot.points : 0;
         const points = Number(basePoints || 0) + Number(gameState.winLadderBonusPoints || 0);
+        const completionTitle = snapshot && snapshot.hasFullCard ? t("rewards.missionComplete") : t("rewards.bingoComplete");
+        const winTitle = DOM.winModal.querySelector("h2");
+        if (winTitle) winTitle.textContent = completionTitle;
         if (window.SessionSummary && typeof window.SessionSummary.buildSessionOutcome === "function" && snapshot && snapshot.session) {
+            const guide = this.getActiveGuide();
+            const learned = [
+                `You identified ${Array.isArray(snapshot.completedTiles) ? snapshot.completedTiles.length : 0} objects using scan feedback.`,
+                `Your strongest momentum was streak ${Number(snapshot.bestSessionStreak || 0)}.`,
+                `Most useful tip: ${gameState.guide.recentTips[0] || "Steady framing improves confidence."}`
+            ];
             gameState.sessionRecap = window.SessionSummary.buildSessionOutcome({
                 sessionId: snapshot.session.id,
                 userId: snapshot.session.userId,
@@ -1562,17 +2291,41 @@ const GameManager = {
                 badgesEarned: Array.isArray(snapshot.badges) ? snapshot.badges.map((badge) => badge.id) : [],
                 durationMs: elapsed * 1000,
                 primaryWinState: "BINGO_COMPLETE",
-                secondaryWinStates: gameState.lastWinStates
+                secondaryWinStates: gameState.lastWinStates,
+                activeGuideId: guide ? guide.id : null,
+                activeGuideName: guide ? guide.name : null,
+                mostUsefulGuideTip: gameState.guide.recentTips[0] || "",
+                whatYouLearned: learned,
+                nextTimeSuggestion: this.getGuideSuggestion(snapshot)
             });
         }
+        const topBadge = snapshot && Array.isArray(snapshot.badges) && snapshot.badges.length
+            ? snapshot.badges[snapshot.badges.length - 1].name
+            : "None";
+        const favoriteDiscovery = gameState.selectedCell && gameState.selectedCell.item
+            ? gameState.selectedCell.item.name
+            : "Unknown";
+        const guide = this.getActiveGuide();
+        const guideTip = gameState.guide.recentTips[0] || "Steady framing keeps scans accurate.";
+        const mostValuableTarget = gameState.currentCardItems && gameState.currentCardItems.length
+            ? gameState.currentCardItems[0].name
+            : "Target #1";
         DOM.finalStats.innerHTML = `
+            <div class="flex justify-between mb-3 text-amber-100"><span>🛰️ Mission:</span><strong class="text-amber-300">${completionTitle}</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>⏱️ Time:</span><strong class="text-amber-300">${elapsed}s</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>📊 Scans:</span><strong class="text-amber-300">${gameState.successfulScans}/${gameState.totalAttempts}</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>🏅 Points:</span><strong class="text-amber-300">${points}</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>🔥 Best streak:</span><strong class="text-amber-300">${snapshot ? snapshot.bestSessionStreak : 0}</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>🤖 AI Detections:</span><strong class="text-amber-300">${gameState.aiDetections}</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>🎯 Accuracy:</span><strong class="text-amber-300">${scanAccuracy}%</strong></div>
             <div class="flex justify-between mb-3 text-amber-100"><span>📈 Lines:</span><strong class="text-amber-300">${snapshot ? snapshot.bingoLines.length : 0}</strong></div>
-            <div class="flex justify-between text-amber-100"><span>🏁 Room rank:</span><strong class="text-amber-300">#${snapshot && snapshot.rank ? snapshot.rank : "-"}</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>🏁 Room rank:</span><strong class="text-amber-300">#${snapshot && snapshot.rank ? snapshot.rank : "-"}</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>⭐ Favorite discovery:</span><strong class="text-amber-300">${favoriteDiscovery}</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>💠 Most valuable target:</span><strong class="text-amber-300">${mostValuableTarget}</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>🧭 Guide:</span><strong class="text-amber-300">${guide ? guide.name : "None"}</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>📚 What you learned:</span><strong class="text-amber-300">${favoriteDiscovery} matters in ${currentTheme} collections.</strong></div>
+            <div class="flex justify-between mb-3 text-amber-100"><span>💡 Most useful tip:</span><strong class="text-amber-300">${guideTip}</strong></div>
+            <div class="flex justify-between text-amber-100"><span>🏅 Latest badge:</span><strong class="text-amber-300">${topBadge}</strong></div>
         `;
         if (DOM.victoryHighlight) {
             const isFull = Boolean(snapshot && snapshot.hasFullCard);
@@ -1582,12 +2335,21 @@ const GameManager = {
         if (DOM.recapBadges) {
             DOM.recapBadges.innerHTML = "";
             const recentBadges = snapshot && Array.isArray(snapshot.badges) ? snapshot.badges.slice(-4) : [];
+            const learnedCards = gameState.sessionRecap && gameState.sessionRecap.summary && Array.isArray(gameState.sessionRecap.summary.whatYouLearned)
+                ? gameState.sessionRecap.summary.whatYouLearned.slice(0, 2).map((line) => `<div class="lesson-card"><p class="lesson-card__title">📝 What your guide noticed</p><p class="lesson-card__text">${line}</p></div>`).join("")
+                : "";
             DOM.recapBadges.innerHTML = recentBadges.length
-                ? `<p class="text-xs text-amber-200 mb-2">Unlocked this session</p><div class="flex flex-wrap gap-2">${recentBadges.map((badge) => `<span class="glass-badge text-xs bg-white/5">${badge.icon} ${badge.name}</span>`).join("")}</div>`
-                : '<p class="text-xs text-amber-100">No badges unlocked this round.</p>';
+                ? `<p class="text-xs text-amber-200 mb-2">${t("rewards.unlockedThisSession")}</p><div class="flex flex-wrap gap-2">${recentBadges.map((badge) => `<span class="glass-badge text-xs bg-white/5">${badge.icon} ${badge.name}</span>`).join("")}</div>`
+                : `<p class="text-xs text-amber-100">${t("rewards.noBadgesThisRound")}</p>`;
+            if (learnedCards) {
+                DOM.recapBadges.innerHTML += `<div class="grid grid-cols-1 gap-2 mt-3">${learnedCards}</div>`;
+            }
         }
         DOM.winModal.classList.remove("hidden");
-        if (typeof speakText === "function") speakText("Congratulations! You won the museum bingo game!", 1);
+        const finaleLine = this.emitGuideBeat("recap", {
+            recapFocus: `Favorite discovery: ${favoriteDiscovery}. Try ${mostValuableTarget} first next round.`
+        }, { force: true, speak: false });
+        if (typeof speakText === "function") speakText(finaleLine || t("rewards.missionComplete"), 1);
     },
 
     updateStats() {
@@ -1603,6 +2365,7 @@ const GameManager = {
     },
 
     showTutorialStep() {
+        const tutorialSteps = getTutorialSteps();
         const step = tutorialSteps[gameState.tutorialStep];
         if (!step || !DOM.tutorialStepIcon || !DOM.tutorialStepTitle || !DOM.tutorialStepText || !DOM.tutorialOverlay) return;
         DOM.tutorialStepIcon.textContent = step.icon;
@@ -1617,6 +2380,7 @@ const GameManager = {
     },
 
     nextTutorialStep() {
+        const tutorialSteps = getTutorialSteps();
         playGameSound("click");
         gameState.tutorialStep++;
         if (gameState.tutorialStep < tutorialSteps.length) this.showTutorialStep();
@@ -1653,8 +2417,8 @@ const GameManager = {
 
     showLevelUp() {
         playGameSound("levelUp");
-        this.setStatusMessage(`<span class="text-2xl animate-bounce">🌟</span> LEVEL UP! You are now Level ${gameState.level}!`);
-        if (typeof speakText === "function") speakText(`Level up! You are now level ${gameState.level}`);
+        this.setStatusMessage(`<span class="text-2xl animate-bounce">🌟</span> ${t("gameplay.levelUp", { level: gameState.level })}`);
+        if (typeof speakText === "function") speakText(t("gameplay.levelUp", { level: gameState.level }));
         this.createParticles(window.innerWidth / 2, window.innerHeight / 2, "#fbbf24", 30);
     },
 
@@ -1683,12 +2447,24 @@ const GameManager = {
             DOM.heatVisionBtn.textContent = gameState.isHeatVisionActive ? "🔥 HEAT VISION ON" : "🔍 HEAT VISION";
         }
         if (gameState.isHeatVisionActive) {
-            if (typeof speakText === "function") speakText("Heat vision activated. Look for the orange glow.");
+            if (typeof speakText === "function") speakText(t("scan.scanning"));
+            this.updateHeatVisionHud({ signal: 22, target: "Acquiring", confidence: 0 });
             this.startHeatVisionLoop();
         } else {
             if (DOM.cameraFeed) DOM.cameraFeed.style.filter = "none";
             if (DOM.vrHud) DOM.vrHud.classList.add("hidden");
         }
+    },
+
+    updateHeatVisionHud({ signal = 0, target = "Unknown", confidence = 0 } = {}) {
+        if (!DOM.vrHud) return;
+        const lines = DOM.vrHud.querySelectorAll(".vr-hud-text");
+        if (!lines || lines.length < 3) return;
+        const clampedSignal = Math.max(0, Math.min(100, Math.round(signal)));
+        const clampedConfidence = Math.max(0, Math.min(100, Math.round(confidence)));
+        lines[0].textContent = `TARGET: ${target.toUpperCase()}`;
+        lines[1].textContent = `SIGNAL: ${clampedSignal}%`;
+        lines[2].textContent = `CONFIDENCE: ${clampedConfidence}%`;
     },
 
     startHeatVisionLoop() {

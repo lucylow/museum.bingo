@@ -10,6 +10,11 @@ const MAX_VISIBLE_PREDICTIONS = 4;
 const MAX_ATTEMPTS = 30;
 const DETECTION_INTERVAL_MS = 300;
 
+function t(key, params = {}) {
+    if (window.I18n && typeof window.I18n.t === "function") return window.I18n.t(key, params);
+    return key;
+}
+
 const targetDetectionHints = {
     1: ['book', 'tv', 'person', 'tie'],
     2: ['person'],
@@ -31,19 +36,19 @@ async function initializeAI() {
     if (aiModel) return aiModel;
     if (aiModelLoadPromise) return aiModelLoadPromise;
 
-    updateAIStatus('Loading...');
+    updateAIStatus(t("scan.scanning"));
     try {
         if (typeof cocoSsd === 'undefined' || typeof cocoSsd.load !== 'function') {
             throw new Error('cocoSsd loader is unavailable');
         }
         aiModelLoadPromise = cocoSsd.load();
         aiModel = await aiModelLoadPromise;
-        updateAIStatus('Ready');
+        updateAIStatus(t("scan.recognized"));
         console.log('AI model loaded successfully');
         return aiModel;
     } catch (err) {
         console.error('Failed to load AI model:', err);
-        updateAIStatus('Fallback');
+        updateAIStatus(t("language.incomplete"));
         return null;
     } finally {
         aiModelLoadPromise = null;
@@ -259,9 +264,9 @@ async function simulateAIDetection(videoElement, canvas, targetArt) {
         if (confidenceFill) confidenceFill.style.width = `${Math.floor(confidence)}%`;
         const guidanceEl = document.getElementById('scan-guidance');
         if (guidanceEl) {
-            if (confidence < 35) guidanceEl.textContent = "Still searching... move closer and keep steady.";
-            else if (confidence < 70) guidanceEl.textContent = "Almost there. Try reducing glare or changing angle.";
-            else guidanceEl.textContent = "Great lock. Confirm when the artwork details appear.";
+            if (confidence < 35) guidanceEl.textContent = t("scan.guidanceNoMatch");
+            else if (confidence < 70) guidanceEl.textContent = t("scan.guidanceAlmost");
+            else guidanceEl.textContent = t("scan.recognized");
         }
         if (confidence >= 70 && confidence < 100) {
             window.dispatchEvent(new CustomEvent("museum-bingo-near-match", { detail: { confidence: Math.floor(confidence) } }));
@@ -293,6 +298,6 @@ if (voiceToggle) {
     voiceToggle.addEventListener('click', () => {
         voiceEnabled = !voiceEnabled;
         voiceToggle.textContent = voiceEnabled ? '🔊' : '🔇';
-        speakText(voiceEnabled ? 'Voice guide enabled' : 'Voice guide disabled');
+        speakText(voiceEnabled ? t("accessibility.voiceHint") : t("settings.sound"));
     });
 }

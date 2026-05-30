@@ -1,0 +1,32 @@
+[
+  {
+    "sessionId": "sess_es_001",
+    "userId": "user_emma",
+    "museumId": "el_museo_barrio",
+    "language": "es",
+    "startTime": "2025-05-28T14:30:00Z",
+    "completedTiles": ["0_0", "1_1"],
+    "score": 25,
+    "status": "active"
+  },
+  {
+    "sessionId": "sess_fr_002",
+    "userId": "user_pierre",
+    "museumId": "the_cloisters",
+    "language": "fr",
+    "startTime": "2025-05-28T11:00:00Z",
+    "completedTiles": ["0_1", "0_2", "2_0"],
+    "score": 45,
+    "status": "completed"
+  },
+  {
+    "sessionId": "sess_de_003",
+    "userId": "user_klaus",
+    "museumId": "new_museum",
+    "language": "de",
+    "startTime": "2025-05-28T09:15:00Z",
+    "completedTiles": [],
+    "score": 0,
+    "status": "active"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "museumId": "frick_collection",
+  "language": "es",
+  "card": [
+    ["Retrato de un hombre con turbante (Hans Memling)", "Bodegón con frutas", "Paisaje invernal"],
+    ["Escultura de mármol (Houdon)", "Cuarto chino", "Vista de Venecia (Guardian)"],
+    ["Porcelana de Sèvres", "Tapiz de la familia Frick", "Reloj de mesa antiguo"]
+  ],
+  "metadata": {
+    "translated_at": "2025-05-28T10:00:00Z",
+    "translator": "Google ML Kit on‑device"
+  }
+}

@@ -122,6 +122,12 @@ graph TB
 
 ---
 
+## 🎤 Voice Commands for Museum.Bingo - Complete 10-Page Implementation
+
+Voice command support for the React Native app is fully documented in [`docs/voice-commands-implementation.md`](docs/voice-commands-implementation.md), including dependency setup, native permissions, intent typing, Rhino integration, fallback recognition, voice UI feedback, command routing, TTS helper wiring, and optional wake-word scaffolding.
+
+---
+
 ## Project Structure
 
 ```

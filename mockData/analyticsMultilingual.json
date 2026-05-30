@@ -1,0 +1,18 @@
+{
+  "report_date": "2025-05-28",
+  "museum_id": "el_museo_barrio",
+  "by_language": {
+    "en": { "sessions": 45, "avg_score": 67, "top_tile": "Large mural" },
+    "es": { "sessions": 32, "avg_score": 72, "top_tile": "Gran mural" },
+    "zh": { "sessions": 12, "avg_score": 58, "top_tile": "大型壁画" }
+  },
+  "translations_used": {
+    "es": 0.68,
+    "zh": 0.15,
+    "fr": 0.09,
+    "de": 0.05,
+    "en": 0.03
+  },
+  "most_requested_language_help": "Spanish (21 requests)",
+  "recommendation": "Pre‑download Spanish ML Kit model to improve speed."
+}

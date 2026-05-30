@@ -1,0 +1,51 @@
+{
+  "met_nyc": {
+    "size": 3,
+    "card": [
+      ["Painting with a dog", "Sculpture that looks uncomfortable", "Self-portrait with suspicious eyes"],
+      ["Landscape with mountains", "Artwork with gold leaf", "Still life with fruit"],
+      ["Portrait of a king", "Seashell in painting", "Artwork with text"]
+    ]
+  },
+  "moma_nyc": {
+    "size": 3,
+    "card": [
+      ["Abstract expressionist work", "Sculpture made of found objects", "Pop art piece"],
+      ["Surrealist landscape", "Black and white photograph", "Video installation"],
+      ["Minimalist grid", "Performance art documentation", "Mixed media collage"]
+    ]
+  },
+  "guggenheim_nyc": {
+    "size": 3,
+    "card": [
+      ["Spiral ramp artwork", "Non-objective painting", "Large mobile sculpture"],
+      ["Geometric abstraction", "Artwork with a circle", "Works on paper"],
+      ["Impasto texture", "Blue dominant piece", "Artist from the 1960s"]
+    ]
+  },
+  "whitney_nyc": {
+    "size": 3,
+    "card": [
+      ["American realist painting", "Artwork about urban life", "Neon sign art"],
+      ["Photography of New York", "Large-scale installation", "Video with sound"],
+      ["Self-portrait by living artist", "Artwork referencing film", "Work from the 1980s"]
+    ]
+  },
+  "brooklyn_museum": {
+    "size": 4,
+    "card": [
+      ["Egyptian artifact", "Feminist art piece", "Contemporary African art", "Decorative arts object"],
+      ["Botanical illustration", "Brooklyn-themed work", "Large tapestry", "Artwork with a bicycle"],
+      ["Community-engaged project", "Islamic art", "Colonial portrait", "Abstract sculpture"],
+      ["Photography of Coney Island", "Native American textile", "Medieval manuscript", "Artwork with text"]
+    ]
+  },
+  "amnh_nyc": {
+    "size": 3,
+    "card": [
+      ["Dinosaur skeleton", "Meteorite specimen", "Taxidermy diorama"],
+      ["Blue whale model", "Cultural artifact from Africa", "Mineral display"],
+      ["Rose-colored gem", "Bird of paradise", "Artwork depicting evolution"]
+    ]
+  }
+}

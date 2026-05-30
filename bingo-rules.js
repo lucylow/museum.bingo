@@ -56,15 +56,73 @@ const ROOM_MODES = Object.freeze({
 });
 
 const BADGE_DEFINITIONS = Object.freeze([
-    { id: "first_scan", name: "First Scan", description: "Complete your first successful scan.", icon: "📸", rarity: "common" },
-    { id: "first_tile", name: "First Tile", description: "Validate your first bingo tile.", icon: "🧩", rarity: "common" },
-    { id: "three_in_a_row", name: "Three in a Row", description: "Complete your first bingo line.", icon: "🎯", rarity: "rare" },
-    { id: "bingo", name: "Bingo", description: "Complete any line on your card.", icon: "🎉", rarity: "rare" },
-    { id: "full_card", name: "Full Card", description: "Complete the entire bingo card.", icon: "🗺️", rarity: "epic" },
-    { id: "speed_finder", name: "Speed Finder", description: "Validate a tile in under 10 seconds.", icon: "⚡", rarity: "rare" },
-    { id: "streak_master", name: "Streak Master", description: "Reach a streak of 5.", icon: "🔥", rarity: "epic" },
+    { id: "first_scan", name: "First Discovery", description: "Complete your first confirmed artifact scan.", icon: "🧭", rarity: "common" },
+    { id: "first_tile", name: "First Artifact", description: "Lock in your first artifact tile.", icon: "🏺", rarity: "common" },
+    { id: "three_in_a_row", name: "Three Finds in a Row", description: "Complete your first bingo line.", icon: "🔥", rarity: "uncommon" },
+    { id: "bingo", name: "Relic Hunter", description: "Complete any line on your card.", icon: "🗿", rarity: "rare" },
+    { id: "full_card", name: "Full Card", description: "Complete the entire bingo card.", icon: "🏆", rarity: "epic" },
+    { id: "speed_finder", name: "Speed Explorer", description: "Validate a tile in under 10 seconds.", icon: "⏱️", rarity: "rare" },
+    { id: "streak_master", name: "Streak Master", description: "Reach a streak of 5.", icon: "⚡", rarity: "epic" },
     { id: "room_champion", name: "Room Champion", description: "Finish #1 in your room.", icon: "👑", rarity: "legendary" },
-    { id: "museum_explorer", name: "Museum Explorer", description: "Complete a full museum card.", icon: "🏛️", rarity: "epic" }
+    { id: "museum_explorer", name: "Museum Regular", description: "Complete a full museum card.", icon: "🎫", rarity: "epic" }
+]);
+
+const NFT_TOKEN_DEFINITIONS = Object.freeze([
+    {
+        id: "nft_first_scan",
+        name: "Genesis Scan",
+        description: "Mint-ready collectible for your first confirmed scan.",
+        icon: "🪙",
+        rarity: "common",
+        tier: 1,
+        utility: "Profile flair: Genesis explorer ring",
+        category: "milestone",
+        optionalMint: true
+    },
+    {
+        id: "nft_line_unlock",
+        name: "Line Relic",
+        description: "Collectible badge unlocked after completing your first bingo line.",
+        icon: "📏",
+        rarity: "uncommon",
+        tier: 2,
+        utility: "Unlocks one bonus challenge slot",
+        category: "line_completion",
+        optionalMint: true
+    },
+    {
+        id: "nft_streak_master",
+        name: "Streak Sigil",
+        description: "Status token for building a five-scan streak.",
+        icon: "⚡",
+        rarity: "rare",
+        tier: 3,
+        utility: "Animated streak profile border",
+        category: "streak",
+        optionalMint: true
+    },
+    {
+        id: "nft_full_card_relic",
+        name: "Full Card Relic",
+        description: "Rare collectible unlocked for completing the full bingo card.",
+        icon: "🏺",
+        rarity: "epic",
+        tier: 4,
+        utility: "Access to rare-card multiplayer rooms",
+        category: "full_card",
+        optionalMint: true
+    },
+    {
+        id: "nft_room_trophy",
+        name: "Room Trophy",
+        description: "Trophy collectible for winning your multiplayer room.",
+        icon: "🏆",
+        rarity: "legendary",
+        tier: 5,
+        utility: "Leaderboard trophy frame",
+        category: "multiplayer_win",
+        optionalMint: true
+    }
 ]);
 
 function resolveDifficulty(mode) {
@@ -261,12 +319,55 @@ function evaluateBadgeUnlocks(context) {
     return unlocked;
 }
 
+function getSeasonalTokenDefinition(seasonId) {
+    const safeSeason = String(seasonId || "season_genesis").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    return {
+        id: `nft_daily_${safeSeason}`,
+        name: "Seasonal Curator Pass",
+        description: `Seasonal collectible for completing a daily challenge in ${safeSeason.replaceAll("_", " ")}.`,
+        icon: "🧩",
+        rarity: "rare",
+        tier: 3,
+        utility: "Seasonal profile flair and event room access",
+        category: "seasonal_daily",
+        seasonId: safeSeason,
+        optionalMint: true
+    };
+}
+
+function evaluateNftUnlocks(context) {
+    const unlocked = [];
+    const {
+        lifetimeScans,
+        lineCount,
+        isFullCard,
+        streak,
+        rank,
+        dailyChallengeCompleted,
+        seasonId,
+        awardedTokenIds
+    } = context;
+    const earned = toSet(awardedTokenIds);
+    function maybeUnlock(definition) {
+        if (!definition || !definition.id || earned.has(definition.id)) return;
+        unlocked.push({ ...definition, earnedAt: new Date().toISOString() });
+    }
+    if (lifetimeScans >= 1) maybeUnlock(NFT_TOKEN_DEFINITIONS.find((token) => token.id === "nft_first_scan"));
+    if (lineCount >= 1) maybeUnlock(NFT_TOKEN_DEFINITIONS.find((token) => token.id === "nft_line_unlock"));
+    if (streak >= 5) maybeUnlock(NFT_TOKEN_DEFINITIONS.find((token) => token.id === "nft_streak_master"));
+    if (isFullCard) maybeUnlock(NFT_TOKEN_DEFINITIONS.find((token) => token.id === "nft_full_card_relic"));
+    if (rank === 1 && isFullCard) maybeUnlock(NFT_TOKEN_DEFINITIONS.find((token) => token.id === "nft_room_trophy"));
+    if (dailyChallengeCompleted) maybeUnlock(getSeasonalTokenDefinition(seasonId));
+    return unlocked;
+}
+
 window.BingoRules = {
     TILE_STATES,
     CARD_COMPLETION_STATES,
     DIFFICULTY_PRESETS,
     ROOM_MODES,
     BADGE_DEFINITIONS,
+    NFT_TOKEN_DEFINITIONS,
     computeWinPatterns,
     getCompletedLines,
     isLineCompleted,
@@ -276,5 +377,7 @@ window.BingoRules = {
     getStreakBonus,
     calculateScoreAfterValidation,
     getNextBestTileHint,
-    evaluateBadgeUnlocks
+    evaluateBadgeUnlocks,
+    getSeasonalTokenDefinition,
+    evaluateNftUnlocks
 };

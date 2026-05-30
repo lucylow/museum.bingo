@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isPremiumUser(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.subscriptionStatus == 'active';
+    }
+
+    match /multiplayer_rooms/{roomId} {
+      allow create: if request.auth != null;
+
+      allow read: if request.auth != null
+        && (resource.data.players[request.auth.uid] != null
+        || resource.data.ownerId == request.auth.uid);
+
+      allow update: if request.auth != null
+        && (
+          resource.data.ownerId == request.auth.uid
+          || resource.data.players[request.auth.uid] != null
+          || (
+            resource.data.players.size() > 3
+            && isPremiumUser(request.auth.uid)
+          )
+        );
+
+      allow delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /museums/{museumId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /bingo_cards/{museumId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /game_sessions/{sessionId} {
+      allow create: if request.auth != null;
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /daily_leaderboards/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /premium_content/{document} {
+      allow read: if request.auth != null && isPremiumUser(request.auth.uid);
+    }
+  }
+}

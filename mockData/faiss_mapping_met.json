@@ -1,0 +1,20 @@
+{
+  "index_file": "s3://museum-bingo-indices/museums/met_nyc/faiss_index.bin",
+  "dimension": 512,
+  "total_vectors": 9,
+  "vector_to_artwork": {
+    "0": "met_001",
+    "1": "met_002",
+    "2": "met_003",
+    "3": "met_004",
+    "4": "met_005",
+    "5": "met_006",
+    "6": "met_007",
+    "7": "met_008",
+    "8": "met_009"
+  },
+  "metadata": {
+    "created_at": "2025-05-27T10:00:00Z",
+    "model": "MobileCLIP-S2-quantized"
+  }
+}

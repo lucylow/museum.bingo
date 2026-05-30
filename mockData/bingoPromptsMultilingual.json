@@ -1,0 +1,32 @@
+{
+  "the_cloisters": {
+    "size": 3,
+    "prompts": {
+      "en": [
+        ["Tapestry with a unicorn", "Medieval armor", "Illuminated manuscript"],
+        ["Romanesque sculpture", "Stained glass window", "Gothic altar piece"],
+        ["Enamel reliquary", "Wooden Madonna", "Cloister garden view"]
+      ],
+      "es": [
+        ["Tapiz con un unicornio", "Armadura medieval", "Manuscrito iluminado"],
+        ["Escultura románica", "Vitral", "Retablo gótico"],
+        ["Relicario esmaltado", "Madonna de madera", "Vista del claustro"]
+      ],
+      "fr": [
+        ["Tapisserie avec une licorne", "Armure médiévale", "Manuscrit enluminé"],
+        ["Sculpture romane", "Vitrail", "Retable gothique"],
+        ["Reliquaire en émail", "Madone en bois", "Vue du cloître"]
+      ],
+      "de": [
+        ["Wandteppich mit Einhorn", "Mittelalterliche Rüstung", "Leuchtendes Manuskript"],
+        ["Romanische Skulptur", "Buntglasfenster", "Gotischer Altaraufsatz"],
+        ["Emailreliquiar", "Madonna aus Holz", "Blick auf den Kreuzgang"]
+      ],
+      "zh": [
+        ["独角兽挂毯", "中世纪盔甲", "装饰手抄本"],
+        ["罗马式雕塑", "彩色玻璃窗", "哥特式祭坛"],
+        ["珐琅圣物盒", "木制圣母像", "回廊景观"]
+      ]
+    }
+  }
+}

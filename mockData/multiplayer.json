@@ -1,0 +1,36 @@
+{
+  "rooms": {
+    "room_1712345678_abc": {
+      "roomId": "room_1712345678_abc",
+      "museumId": "met_nyc",
+      "ownerId": "user_alex",
+      "bingoCard": [
+        ["Painting with a dog", "Sculpture that looks uncomfortable", "Self-portrait with suspicious eyes"],
+        ["Landscape with mountains", "Artwork with gold leaf", "Still life with fruit"],
+        ["Portrait of a king", "Seashell in painting", "Artwork with text"]
+      ],
+      "status": "playing",
+      "createdAt": "2025-05-27T09:00:00Z",
+      "players": {
+        "user_alex": {
+          "userId": "user_alex",
+          "displayName": "Alex Martinez",
+          "score": 60,
+          "completedTiles": ["0_0", "0_1", "1_0"],
+          "joinedAt": "2025-05-27T09:00:00Z"
+        },
+        "user_jordan": {
+          "userId": "user_jordan",
+          "displayName": "Jordan Lee",
+          "score": 30,
+          "completedTiles": ["0_0", "2_1"],
+          "joinedAt": "2025-05-27T09:02:00Z"
+        }
+      },
+      "leaderboard": [
+        { "userId": "user_alex", "score": 60 },
+        { "userId": "user_jordan", "score": 30 }
+      ]
+    }
+  }
+}
