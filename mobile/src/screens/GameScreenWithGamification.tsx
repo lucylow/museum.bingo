@@ -19,7 +19,7 @@ import { useGamificationStore } from '../store/gamificationStore';
 import { appTheme } from '../theme/tokens';
 import { MockImageFrame } from '../components/mock/MockImageFrame';
 import { MockBadgeArt } from '../components/mock/MockBadgeArt';
-import { MOCK_BADGE_ART, MOCK_EMPTY_STATES, MOCK_EVENT_THEMES } from '../mock/mockVisualContent';
+import { MOCK_BADGE_ART, MOCK_EMPTY_STATES, MOCK_EVENT_THEMES, getMockArtworkBySeed } from '../mock/mockVisualContent';
 import { MockEmptyState } from '../components/mock/MockEmptyState';
 import { CameraScreenWithHeatVision } from './CameraScreenWithHeatVision';
 import { ImmersiveSceneShell } from '../components/immersive/ImmersiveSceneShell';
@@ -28,7 +28,6 @@ import { FloatingArtworkCard3D } from '../components/immersive/FloatingArtworkCa
 import { SpatialWaypointOverlay } from '../components/immersive/SpatialWaypointOverlay';
 import { useImmersiveSettingsStore } from '../store/immersiveSettingsStore';
 import { useDeviceMotion } from '../hooks/useDeviceMotion';
-import { getMockArtworkBySeed } from '../mock/mockVisualContent';
 import { classifyPerformanceTier, computeAdaptiveIntensity } from '../utils/ImmersivePerformance';
 
 interface GameScreenWithGamificationProps {
@@ -52,11 +51,16 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
   const [newBadges, setNewBadges] = useState<BadgeEarned[]>([]);
   const [localPointsPopup, setLocalPointsPopup] = useState<PopupState | null>(null);
   const [showRecap, setShowRecap] = useState(false);
+  const [immersiveActive, setImmersiveActive] = useState(false);
+  const [scanModeActive, setScanModeActive] = useState(false);
+  const [focusedTileId, setFocusedTileId] = useState<string | null>(null);
 
   const gamificationState = useGamificationStore();
   const { triggerCelebration } = useBingoCelebration();
   const { latestSnapshot, startSession, endSession, track } = useGameplayStats();
   const engineRef = useRef(new GamificationEngine({}, BADGES));
+  const { settings: immersiveSettings, sceneMode, updateSettings, markOnboardingSeen, onboardingSeen } = useImmersiveSettingsStore();
+  const motion = useDeviceMotion(immersiveActive, immersiveSettings.motionSensitivity);
 
   useEffect(() => {
     gamificationState.resetSession(museumId, userId, sessionId);
@@ -214,74 +218,168 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
       },
       idempotencyKey: `rank-${sessionId}-${newRank}-${newState.totalScore}`,
     });
+    setFocusedTileId(tileId);
   };
+
+  const fallbackTier = classifyPerformanceTier(immersiveSettings.lowPowerMode ? 36 : 18);
+  const adaptiveIntensity = computeAdaptiveIntensity(fallbackTier, {
+    motion: immersiveSettings.motionSensitivity,
+    depth: immersiveSettings.depthIntensity,
+    glow: immersiveSettings.lightingContrast,
+  });
+  const unresolvedTileId = card.length
+    ? `${Math.floor(gamificationState.tilesValidated.length / Math.max(1, card.length)) % card.length}_${gamificationState.tilesValidated.length % card.length}`
+    : '0_0';
+  const activeArtwork = getMockArtworkBySeed(focusedTileId ?? unresolvedTileId);
+
+  if (scanModeActive) {
+    return (
+      <CameraScreenWithHeatVision
+        museumId={museumId}
+        artworks={[]}
+        onArtworkValidated={async (_artworkId, tileId) => {
+          try {
+            await handleTileValidation(tileId);
+            return true;
+          } catch {
+            return false;
+          }
+        }}
+        userId={userId}
+        sessionId={sessionId}
+        onClose={() => setScanModeActive(false)}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppPanel style={styles.header}>
-        <Text style={styles.score}>⭐ {gamificationState.totalScore}</Text>
-        <StreakIndicator
-          streak={gamificationState.currentStreak}
-          isActive={gamificationState.currentStreak >= 2}
-        />
-        <RankChangeIndicator change={gamificationState.rankChange} />
-      </AppPanel>
-      <View style={styles.statsRow}>
-        <StatCard
-          title="Accuracy"
-          value={`${Math.round(latestSnapshot?.sessionStats.accuracy ?? 0)}%`}
-          subtitle="Session"
-          accentColor="#2563EB"
-        />
-        <StatCard
-          title="Hints"
-          value={latestSnapshot?.sessionStats.hintsUsed ?? 0}
-          subtitle="Heat vision"
-          accentColor="#F97316"
-        />
-        <StatCard
-          title="Badges"
-          value={latestSnapshot?.sessionStats.badgesEarned ?? 0}
-          subtitle="Unlocked"
-          accentColor="#A855F7"
-        />
-      </View>
-      <View style={styles.themeBanner}>
-        <MockImageFrame
-          token={MOCK_EVENT_THEMES[0].token}
-          label={MOCK_EVENT_THEMES[0].name}
-          subtitle="Seasonal challenge board"
-          compact
-        />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        <TranslatedBingoCard
-          card={card}
-          completedTiles={gamificationState.tilesValidated}
-          onTileValidate={(tileIdArg) => void handleTileValidation(tileIdArg)}
-        />
-        <AppPanel style={styles.badgeShelf}>
-          <Text style={styles.badgeShelfTitle}>Reward shelf</Text>
-          <View style={styles.badgeRow}>
-            {(newBadges.length ? newBadges : BADGES.slice(0, 4)).map((badge) => (
-              <MockBadgeArt
-                key={badge.id}
-                token={MOCK_BADGE_ART[badge.id] ?? MOCK_BADGE_ART.first_scan}
-                rarity={badge.rarity}
-                iconText={badge.icon}
-              />
-            ))}
+      {immersiveActive ? (
+        <ImmersiveSceneShell
+          settings={{ ...immersiveSettings, motionSensitivity: adaptiveIntensity.motion, depthIntensity: adaptiveIntensity.depth }}
+          sceneMode={sceneMode}
+          tiltX={motion.tiltX}
+          tiltY={motion.tiltY}
+          onboardingVisible={!onboardingSeen}
+          onDismissOnboarding={markOnboardingSeen}
+          onExit={() => setImmersiveActive(false)}
+          onToggleComfort={() => updateSettings({ comfortMode: !immersiveSettings.comfortMode })}
+        >
+          <View style={styles.immersiveTopRow}>
+            <Text style={styles.score}>⭐ {gamificationState.totalScore}</Text>
+            <Text style={styles.immersiveHint}>Move phone for depth • Tap card focus</Text>
+            <Text style={styles.immersiveTier}>Tier {fallbackTier}</Text>
           </View>
-          {!newBadges.length ? (
-            <MockEmptyState
-              token={{ ...MOCK_EVENT_THEMES[2].token, type: 'emptyState', id: 'badge-shelf-empty', aspect: 'landscape' }}
-              title={MOCK_EMPTY_STATES.noBadges.title}
-              body={MOCK_EMPTY_STATES.noBadges.body}
+          <View style={styles.immersiveCardWrap}>
+            <FloatingArtworkCard3D
+              token={activeArtwork.token}
+              title={activeArtwork.title}
+              artist={activeArtwork.artist}
+              museumLabel={activeArtwork.museumLabel}
+              statusLabel={focusedTileId ? 'Focused target' : 'Active target'}
+              bonusLabel={gamificationState.currentStreak >= 2 ? 'Streak bonus active' : undefined}
+              highlighted
+              tiltX={motion.tiltX}
+              tiltY={motion.tiltY}
+              onPress={() => setScanModeActive(true)}
             />
-          ) : null}
-        </AppPanel>
-      </ScrollView>
+          </View>
+          <SpatialWaypointOverlay
+            relativeBearing={motion.heading}
+            distanceMeters={Math.max(3, 28 - gamificationState.tilesValidated.length)}
+            targetTitle={activeArtwork.title}
+          />
+          <SpatialBingoBoard
+            card={card}
+            completedTiles={gamificationState.tilesValidated}
+            onTileValidate={(tileIdArg) => void handleTileValidation(tileIdArg)}
+            focusedTileId={focusedTileId}
+            onFocusTile={setFocusedTileId}
+          />
+          <Text style={styles.scanLink} onPress={() => setScanModeActive(true)}>
+            Open scan mode
+          </Text>
+          <Text style={styles.scanLink} onPress={() => setShowRecap(true)}>
+            View session recap
+          </Text>
+        </ImmersiveSceneShell>
+      ) : (
+        <>
+          <AppPanel style={styles.header}>
+            <Text style={styles.score}>⭐ {gamificationState.totalScore}</Text>
+            <StreakIndicator
+              streak={gamificationState.currentStreak}
+              isActive={gamificationState.currentStreak >= 2}
+            />
+            <RankChangeIndicator change={gamificationState.rankChange} />
+          </AppPanel>
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Accuracy"
+              value={`${Math.round(latestSnapshot?.sessionStats.accuracy ?? 0)}%`}
+              subtitle="Session"
+              accentColor="#2563EB"
+            />
+            <StatCard
+              title="Hints"
+              value={latestSnapshot?.sessionStats.hintsUsed ?? 0}
+              subtitle="Heat vision"
+              accentColor="#F97316"
+            />
+            <StatCard
+              title="Badges"
+              value={latestSnapshot?.sessionStats.badgesEarned ?? 0}
+              subtitle="Unlocked"
+              accentColor="#A855F7"
+            />
+          </View>
+          <View style={styles.themeBanner}>
+            <MockImageFrame
+              token={MOCK_EVENT_THEMES[0].token}
+              label={MOCK_EVENT_THEMES[0].name}
+              subtitle="Seasonal challenge board"
+              compact
+            />
+          </View>
+
+          <ScrollView contentContainerStyle={styles.content}>
+            <TranslatedBingoCard
+              card={card}
+              completedTiles={gamificationState.tilesValidated}
+              onTileValidate={(tileIdArg) => void handleTileValidation(tileIdArg)}
+            />
+            <Text style={styles.scanLink} onPress={() => setScanModeActive(true)}>
+              Open scan mode
+            </Text>
+            <AppPanel style={styles.badgeShelf}>
+              <Text style={styles.badgeShelfTitle}>Reward shelf</Text>
+              <View style={styles.badgeRow}>
+                {(newBadges.length ? newBadges : BADGES.slice(0, 4)).map((badge) => (
+                  <MockBadgeArt
+                    key={badge.id}
+                    token={MOCK_BADGE_ART[badge.id] ?? MOCK_BADGE_ART.first_scan}
+                    rarity={badge.rarity}
+                    iconText={badge.icon}
+                  />
+                ))}
+              </View>
+              {!newBadges.length ? (
+                <MockEmptyState
+                  token={{ ...MOCK_EVENT_THEMES[2].token, type: 'emptyState', id: 'badge-shelf-empty', aspect: 'landscape' }}
+                  title={MOCK_EMPTY_STATES.noBadges.title}
+                  body={MOCK_EMPTY_STATES.noBadges.body}
+                />
+              ) : null}
+            </AppPanel>
+          </ScrollView>
+          <Text style={styles.recapLink} onPress={() => setShowRecap(true)}>
+            View session recap
+          </Text>
+          <Text style={styles.immersiveToggleLink} onPress={() => setImmersiveActive(true)}>
+            Enter immersive mode
+          </Text>
+        </>
+      )}
 
       {localPointsPopup ? (
         <PointsPopup
@@ -303,9 +401,6 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
           }}
         />
       ))}
-      <Text style={styles.recapLink} onPress={() => setShowRecap(true)}>
-        View session recap
-      </Text>
       <SessionRecapModal
         visible={showRecap}
         summary={latestSnapshot?.sessionStats ?? null}
@@ -332,6 +427,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: appTheme.spacing.sm,
     paddingTop: appTheme.spacing.xs,
   },
+  immersiveTopRow: {
+    marginHorizontal: appTheme.spacing.md,
+    marginBottom: appTheme.spacing.xs,
+    borderRadius: appTheme.radius.md,
+    borderColor: appTheme.colors.borderSoft,
+    borderWidth: 1,
+    padding: appTheme.spacing.xs,
+    backgroundColor: appTheme.colors.overlayDark,
+    gap: 4,
+  },
+  immersiveHint: { color: appTheme.colors.textSecondary, fontSize: appTheme.typography.caption },
+  immersiveTier: { color: appTheme.colors.accentWarm, fontSize: appTheme.typography.overline, fontWeight: '700' },
+  immersiveCardWrap: {
+    marginHorizontal: appTheme.spacing.md,
+    marginBottom: appTheme.spacing.xs,
+  },
   themeBanner: {
     marginHorizontal: appTheme.spacing.sm,
     marginBottom: appTheme.spacing.xs,
@@ -347,8 +458,20 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: appTheme.spacing.sm, marginBottom: appTheme.spacing.xs },
   recapLink: {
     textAlign: 'center',
-    marginBottom: appTheme.spacing.sm,
+    marginBottom: appTheme.spacing.xs,
     color: appTheme.colors.accent,
+    fontWeight: '700',
+  },
+  scanLink: {
+    textAlign: 'center',
+    color: appTheme.colors.accentWarm,
+    fontWeight: '700',
+    marginVertical: appTheme.spacing.xs,
+  },
+  immersiveToggleLink: {
+    textAlign: 'center',
+    marginBottom: appTheme.spacing.sm,
+    color: appTheme.colors.accentSuccess,
     fontWeight: '700',
   },
 });
