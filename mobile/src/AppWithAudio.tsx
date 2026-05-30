@@ -13,6 +13,7 @@ import { FeedbackSettingsScreen } from './screens/FeedbackSettingsScreen';
 import { GameScreenWithAudio } from './screens/GameScreenWithAudio';
 import { HistoricalMuseumsMapScreen } from './screens/HistoricalMuseumsMapScreen';
 import { HomeScreen } from './screens/HomeScreen';
+import { ImmersiveSettingsScreen } from './screens/ImmersiveSettingsScreen';
 import { LocationSettingsScreen } from './screens/LocationSettingsScreen';
 import { MultiplayerLobby } from './screens/MultiplayerLobby';
 import { MultiplayerGameScreen } from './screens/MultiplayerGameScreen';
@@ -107,6 +108,11 @@ const AppNavigator: React.FC = () => {
               name="FeedbackSettings"
               component={FeedbackSettingsScreen}
               options={{ title: 'Feedback Settings' }}
+            />
+            <Stack.Screen
+              name="ImmersiveSettings"
+              component={ImmersiveSettingsScreen}
+              options={{ title: 'Immersive Mode' }}
             />
             <Stack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: 'Membership and Rewards' }} />
             <Stack.Screen
