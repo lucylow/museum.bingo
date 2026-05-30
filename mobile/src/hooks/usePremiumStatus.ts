@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { monetizationService } from '../monetization/service';
 
 type SubscriptionStatus = {
   isActive: boolean;
@@ -23,9 +24,16 @@ export const usePremiumStatus = (): {
     setLoading(true);
     try {
       const token = await getIdToken();
-      const response = await api.get<SubscriptionStatus>('/subscription/status', { token });
-      setIsPremium(response.isActive);
-      setTier(response.tier);
+      try {
+        const state = await monetizationService.fetchMonetizationState(token);
+        setIsPremium(Boolean(state.subscription.isActive));
+        setTier(state.subscription.tier);
+      } catch {
+        const response = await api.get<SubscriptionStatus>('/subscription/status', { token });
+        const payload = (response as unknown as { data?: SubscriptionStatus }).data ?? (response as SubscriptionStatus);
+        setIsPremium(payload.isActive);
+        setTier(payload.tier);
+      }
     } catch {
       setIsPremium(false);
       setTier(null);

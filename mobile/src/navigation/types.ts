@@ -7,6 +7,7 @@ export type RootStackParamList = {
   LocationSettings: undefined;
   AudioSettings: undefined;
   FeedbackSettings: undefined;
+  ImmersiveSettings: undefined;
   Subscription: undefined;
   Multiplayer: { museumId?: string };
   MultiplayerGame: { roomId: string; museumId: string; isHost: boolean };
