@@ -1,6 +1,8 @@
 
 # 🎨 Museum.Bingo – AR Scavenger Hunt for Cultural Spaces
 
+https://canva.link/a05kl2a547nye6x 
+
 **Turn any museum into an interactive, AI‑powered bingo adventure.**
 
 [![Devpost](https://img.shields.io/badge/Devpost-DeveloperWeek%20NY%202026-blue)](https://devpost.com)
