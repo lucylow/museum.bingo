@@ -21,6 +21,15 @@ import { MockImageFrame } from '../components/mock/MockImageFrame';
 import { MockBadgeArt } from '../components/mock/MockBadgeArt';
 import { MOCK_BADGE_ART, MOCK_EMPTY_STATES, MOCK_EVENT_THEMES } from '../mock/mockVisualContent';
 import { MockEmptyState } from '../components/mock/MockEmptyState';
+import { CameraScreenWithHeatVision } from './CameraScreenWithHeatVision';
+import { ImmersiveSceneShell } from '../components/immersive/ImmersiveSceneShell';
+import { SpatialBingoBoard } from '../components/immersive/SpatialBingoBoard';
+import { FloatingArtworkCard3D } from '../components/immersive/FloatingArtworkCard3D';
+import { SpatialWaypointOverlay } from '../components/immersive/SpatialWaypointOverlay';
+import { useImmersiveSettingsStore } from '../store/immersiveSettingsStore';
+import { useDeviceMotion } from '../hooks/useDeviceMotion';
+import { getMockArtworkBySeed } from '../mock/mockVisualContent';
+import { classifyPerformanceTier, computeAdaptiveIntensity } from '../utils/ImmersivePerformance';
 
 interface GameScreenWithGamificationProps {
   museumId: string;
