@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const firebase_1 = require("../config/firebase");
+const manager_1 = require("../data/leaderboard/manager");
 const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 router.post('/validate', auth_1.authenticateToken, async (req, res) => {
@@ -51,6 +52,16 @@ router.post('/validate', auth_1.authenticateToken, async (req, res) => {
         .set({
         [userId]: newScore,
     }, { merge: true });
+    // Best-effort Redis leaderboard update for low-latency reads.
+    try {
+        const scoreDelta = Math.max(0, newScore - previousScore);
+        if (scoreDelta > 0) {
+            await manager_1.leaderboardManager.recordScore(museumId, userId, scoreDelta);
+        }
+    }
+    catch {
+        // Do not fail tile validation if leaderboard cache is unavailable.
+    }
     res.json({ success: true });
 });
 router.get('/leaderboard/:museumId', auth_1.authenticateToken, async (req, res) => {

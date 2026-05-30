@@ -19,6 +19,10 @@ const webhook_1 = __importDefault(require("./routes/webhook"));
 const user_1 = __importDefault(require("./routes/user"));
 const places_1 = __importDefault(require("./routes/places"));
 const museumOnboarding_1 = __importDefault(require("./routes/museumOnboarding"));
+const multiplayer_1 = __importDefault(require("./routes/multiplayer"));
+const gameplayStats_1 = __importDefault(require("./routes/gameplayStats"));
+const leaderboardRTDB_1 = require("./services/leaderboardRTDB");
+const roomCleanup_1 = require("./services/roomCleanup");
 const DISPLAY_NAME_MAX_LENGTH = 40;
 const ROOM_ID_PATTERN = /^[a-zA-Z0-9_-]{3,120}$/;
 function parseAllowedOrigins() {
@@ -73,6 +77,8 @@ app.use('/api/subscription', subscription_1.default);
 app.use('/api/users', user_1.default);
 app.use('/api/places', places_1.default);
 app.use('/api/museum-onboarding', museumOnboarding_1.default);
+app.use('/api/multiplayer', multiplayer_1.default);
+app.use('/api/gameplay-stats', gameplayStats_1.default);
 const anonymizer = anonymizer_1.AnonymizationService.getInstance();
 app.post('/api/game/validate-tile', async (req, res) => {
     try {
@@ -110,11 +116,12 @@ app.post('/api/game/bingo-complete', async (req, res) => {
 const httpServer = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(httpServer, {
     cors: {
-        origin: corsPolicy.allowAll ? true : corsPolicy.origins,
+        origin: corsPolicy.allowAll ? '*' : corsPolicy.origins,
         methods: ['GET', 'POST'],
         credentials: true,
     },
 });
+app.set('io', io);
 io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
@@ -155,7 +162,14 @@ io.on('connection', (socket) => {
             }
             socket.join(`room:${roomId}`);
             socketData.roomId = roomId;
+            await (0, roomCleanup_1.clearDisconnectedMarker)(roomId, userId);
+            await (0, leaderboardRTDB_1.updatePlayerScore)(roomId, userId, room.players[userId]?.score ?? 0);
             callback?.({ success: true, room });
+            const leaderboard = await (0, leaderboardRTDB_1.getLeaderboard)(roomId);
+            socket.emit('leaderboard-update', leaderboard.map((entry) => ({
+                ...entry,
+                displayName: room.players[entry.userId]?.displayName ?? 'Player',
+            })));
             const sessionId = socket.handshake.headers['x-session-id'];
             if (sessionId && room.museumId) {
                 await eventLogger_1.analyticsLogger.logEvent(anonymizer.anonymiseUserId(userId), anonymizer.anonymiseSessionId(sessionId), room.museumId, 'multiplayer_room_joined', { roomId });
@@ -180,6 +194,7 @@ io.on('connection', (socket) => {
             const roomId = await (0, MultiplayerRoom_1.createRoom)(userId, safeDisplayName, museumId, bingoCard);
             socket.join(`room:${roomId}`);
             socketData.roomId = roomId;
+            await (0, leaderboardRTDB_1.updatePlayerScore)(roomId, userId, 0);
             callback?.({ success: true, roomId });
             io.emit('room-created', { roomId, museumId, ownerId: userId });
         }
@@ -223,12 +238,26 @@ io.on('connection', (socket) => {
             [`players.${userId}.score`]: resolvedScore,
             [`players.${userId}.completedTiles`]: firebase_1.FieldValue.arrayUnion(tileId),
         });
+        await Promise.all([
+            (0, leaderboardRTDB_1.updatePlayerScore)(roomId, userId, resolvedScore),
+            (0, leaderboardRTDB_1.markTileCompleted)(roomId, userId, tileId),
+        ]);
         io.to(`room:${roomId}`).emit('score-update', {
             userId,
             tileId,
             newScore: resolvedScore,
             pointsGained: normalizedPoints,
         });
+        io.to(`room:${roomId}`).emit('tile-completed', {
+            userId,
+            tileId,
+            newScore: resolvedScore,
+        });
+        const leaderboard = await (0, leaderboardRTDB_1.getLeaderboard)(roomId);
+        io.to(`room:${roomId}`).emit('leaderboard-update', leaderboard.map((entry) => ({
+            ...entry,
+            displayName: room.players[entry.userId]?.displayName ?? 'Player',
+        })));
         const sessionId = socket.handshake.headers['x-session-id'];
         if (sessionId && room.museumId) {
             await eventLogger_1.analyticsLogger.logEvent(anonymizer.anonymiseUserId(userId), anonymizer.anonymiseSessionId(sessionId), room.museumId, 'tile_validated', { roomId, tileId, points: normalizedPoints, newScore: resolvedScore });
@@ -242,6 +271,30 @@ io.on('connection', (socket) => {
         socket.leave(`room:${roomId}`);
         io.to(`room:${roomId}`).emit('player-left', { userId });
         socketData.roomId = undefined;
+    });
+    socket.on('request-sync', async ({ roomId }) => {
+        if (!isValidRoomId(roomId)) {
+            return;
+        }
+        const room = await (0, MultiplayerRoom_1.getRoom)(roomId);
+        if (!room) {
+            return;
+        }
+        const leaderboard = await (0, leaderboardRTDB_1.getLeaderboard)(roomId);
+        socket.emit('state-sync', {
+            room,
+            leaderboard: leaderboard.map((entry) => ({
+                ...entry,
+                displayName: room.players[entry.userId]?.displayName ?? 'Player',
+            })),
+        });
+    });
+    socket.on('disconnect', () => {
+        const roomId = socketData.roomId;
+        if (!roomId) {
+            return;
+        }
+        (0, roomCleanup_1.handlePlayerDisconnect)(io, roomId, userId);
     });
 });
 const PORT = Number(process.env.PORT || 3001);

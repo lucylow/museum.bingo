@@ -11,6 +11,8 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { MockImageFrame } from './mock/MockImageFrame';
+import { MOCK_EVENT_THEMES } from '../mock/mockVisualContent';
 
 export const SignInScreen: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -58,6 +60,12 @@ export const SignInScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.card}>
+        <MockImageFrame
+          token={MOCK_EVENT_THEMES[1].token}
+          label="Scan. Match. Bingo."
+          subtitle="Playful AR museum quests for families and friends"
+          style={styles.hero}
+        />
         <Text style={styles.title}>Museum.Bingo</Text>
 
         <TextInput
@@ -140,6 +148,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     elevation: 8,
   },
+  hero: { marginBottom: 14 },
   title: {
     fontSize: 32,
     fontWeight: 'bold',

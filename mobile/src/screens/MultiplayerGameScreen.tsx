@@ -13,6 +13,8 @@ import { useMultiplayerSync } from '../hooks/useMultiplayerSync';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket';
 import { useMultiplayerStore } from '../store/multiplayerStore';
 import { appTheme } from '../theme/tokens';
+import { MOCK_EVENT_THEMES } from '../mock/mockVisualContent';
+import { MockImageFrame } from '../components/mock/MockImageFrame';
 
 type PlayerState = {
   userId: string;
@@ -238,6 +240,14 @@ const MultiplayerGameScreenContent: React.FC<GameProps> = ({ route, navigation }
         <Text style={styles.statusChip}>Tiles {completedTiles.length}</Text>
         {rank ? <Text style={styles.statusChip}>Rank #{rank}</Text> : null}
       </View>
+      <View style={styles.bannerWrap}>
+        <MockImageFrame
+          token={MOCK_EVENT_THEMES[0].token}
+          label="Room Activity"
+          subtitle={`${Object.keys(players).length} players in live gallery race`}
+          compact
+        />
+      </View>
 
       <TranslatedBingoCard
         card={bingoCard}
@@ -319,6 +329,7 @@ const styles = StyleSheet.create({
   languageButtonText: { color: appTheme.colors.textPrimary, fontWeight: '600', fontSize: appTheme.typography.caption },
   waiting: { color: appTheme.colors.accentWarm, fontSize: appTheme.typography.caption },
   statusRow: { flexDirection: 'row', gap: appTheme.spacing.xs, paddingHorizontal: appTheme.spacing.sm, marginBottom: appTheme.spacing.xs },
+  bannerWrap: { paddingHorizontal: appTheme.spacing.sm, marginBottom: appTheme.spacing.xs },
   statusChip: {
     color: appTheme.colors.textSecondary,
     backgroundColor: appTheme.colors.bgMuted,

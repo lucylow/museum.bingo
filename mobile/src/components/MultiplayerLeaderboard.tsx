@@ -3,6 +3,9 @@ import { Animated, FlatList, StyleSheet, Text, View } from 'react-native';
 import { getLeaderboard, LeaderboardEntry as ApiLeaderboardEntry } from '../api/multiplayer';
 import { useMultiplayerSocket } from '../hooks/useMultiplayerSocket';
 import { appTheme } from '../theme/tokens';
+import { MOCK_EMPTY_STATES, getMockAvatarBySeed } from '../mock/mockVisualContent';
+import { MockAvatar } from './mock/MockAvatar';
+import { MockEmptyState } from './mock/MockEmptyState';
 
 export type LeaderboardEntry = ApiLeaderboardEntry;
 
@@ -105,17 +108,43 @@ export const MultiplayerLeaderboard: React.FC<Props> = ({ roomId, currentUserId,
           const rank = index + 1;
           const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
           const isCurrent = item.userId === currentUserId;
+          const avatarProfile = getMockAvatarBySeed(item.userId);
+          const movement = item.score > 120 ? '▲' : item.score > 70 ? '•' : '▼';
+          const streak = Math.max(1, Math.round(item.score / 45));
+          const tiles = Math.max(1, Math.round(item.score / 18));
           return (
             <Animated.View style={[styles.row, rank === 1 && styles.winnerRow, isCurrent && styles.currentRow]}>
               <Text style={styles.rank}>{medal}</Text>
-              <Text style={styles.name}>
-                {item.displayName} {isCurrent ? '(you)' : ''}
-              </Text>
+              <MockAvatar profile={avatarProfile} status={rank === 1 ? 'winner' : 'active'} size={36} style={styles.avatar} />
+              <View style={styles.nameWrap}>
+                <Text style={styles.name}>
+                  {item.displayName} {isCurrent ? '(you)' : ''}
+                </Text>
+                <Text style={styles.meta}>Streak {streak} • Tiles {tiles}</Text>
+              </View>
+              <Text style={styles.movement}>{movement}</Text>
               <Text style={styles.score}>{item.score} pts</Text>
             </Animated.View>
           );
         }}
         contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <MockEmptyState
+            token={{
+              id: 'leaderboard-empty',
+              type: 'emptyState',
+              mood: 'calm',
+              aspect: 'landscape',
+              category: 'leaderboard',
+              fallbackColor: '#2A4460',
+              label: 'Leaderboard waiting',
+              alt: 'Leaderboard empty state illustration',
+              palette: ['#2A4460', '#497FA2', '#8FD5C0'],
+            }}
+            title={MOCK_EMPTY_STATES.noLeaderboard.title}
+            body={MOCK_EMPTY_STATES.noLeaderboard.body}
+          />
+        }
       />
     </Animated.View>
   );
@@ -163,7 +192,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: appTheme.colors.textPrimary,
   },
-  name: { flex: 1, fontSize: appTheme.typography.body, color: appTheme.colors.textPrimary },
+  avatar: { marginRight: appTheme.spacing.xs },
+  nameWrap: { flex: 1 },
+  name: { flex: 1, fontSize: appTheme.typography.body, color: appTheme.colors.textPrimary, fontWeight: '700' },
+  meta: { color: appTheme.colors.textMuted, fontSize: appTheme.typography.overline, marginTop: 1 },
+  movement: { color: appTheme.colors.accentWarm, width: 16, textAlign: 'center', marginRight: appTheme.spacing.xs, fontWeight: '700' },
   score: {
     fontSize: appTheme.typography.body,
     fontWeight: '700',

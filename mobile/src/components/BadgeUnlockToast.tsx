@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BadgeEarned } from '../gamification/types';
+import { MOCK_BADGE_ART } from '../mock/mockVisualContent';
+import { MockBadgeArt } from './mock/MockBadgeArt';
 
 interface BadgeUnlockToastProps {
   badge: BadgeEarned;
@@ -42,6 +44,22 @@ export const BadgeUnlockToast: React.FC<BadgeUnlockToastProps> = ({
     return () => clearTimeout(timer);
   }, [autoDismissMs, fadeAnim, onDismiss, translateY]);
 
+  const prettifyKey = (key: string): string =>
+    key
+      .replace(/^badge\./, '')
+      .replace(/\.(name|desc)$/, '')
+      .split(/[._]/)
+      .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+      .join(' ');
+  const badgeToken =
+    MOCK_BADGE_ART[badge.id] ??
+    ({
+      ...MOCK_BADGE_ART.first_scan,
+      id: `${badge.id}-fallback`,
+      label: badge.id,
+      alt: `${badge.id} badge art`,
+    });
+
   return (
     <Animated.View
       style={[
@@ -53,10 +71,11 @@ export const BadgeUnlockToast: React.FC<BadgeUnlockToastProps> = ({
         },
       ]}
     >
-      <Text style={styles.icon}>{badge.icon}</Text>
+      <MockBadgeArt token={badgeToken} rarity={badge.rarity} iconText={badge.icon} style={styles.badgeArt} />
       <View style={styles.textContainer}>
-        <Text style={styles.title}>{badge.nameKey}</Text>
-        <Text style={styles.description}>{badge.descriptionKey}</Text>
+        <Text style={styles.title}>{prettifyKey(badge.nameKey)}</Text>
+        <Text style={styles.description}>{prettifyKey(badge.descriptionKey)}</Text>
+        <Text style={styles.meta}>{badge.rarity.toUpperCase()} collectible</Text>
       </View>
       <TouchableOpacity onPress={onDismiss}>
         <Text style={styles.dismiss}>✕</Text>
@@ -83,9 +102,10 @@ const styles = StyleSheet.create({
     elevation: 5,
     zIndex: 2000,
   },
-  icon: { fontSize: 32, marginRight: 12 },
+  badgeArt: { marginRight: 12 },
   textContainer: { flex: 1 },
   title: { fontSize: 16, fontWeight: 'bold', color: '#FFF' },
   description: { fontSize: 12, color: '#CCC' },
+  meta: { fontSize: 11, color: '#95A9D0', marginTop: 3, fontWeight: '700', letterSpacing: 0.4 },
   dismiss: { fontSize: 18, color: '#999', padding: 4 },
 });

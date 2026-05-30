@@ -9,13 +9,14 @@ const roomsCollection = firebase_1.db.collection('multiplayer_rooms');
 function createRoomId() {
     return `room_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
-async function createRoom(ownerId, displayName, museumId, bingoCard) {
+async function createRoom(ownerId, displayName, museumId, bingoCard, isPersonalized = false) {
     const roomId = createRoomId();
     const roomData = {
         roomId,
         museumId,
         ownerId,
         bingoCard,
+        isPersonalized,
         status: 'waiting',
         createdAt: firebase_1.Timestamp.now(),
         players: {

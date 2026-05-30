@@ -8,6 +8,10 @@ import { AppPanel } from '../components/ui/AppPanel';
 import { useAuth } from '../context/AuthContext';
 import { useGameplayStats } from '../hooks/useGameplayStats';
 import { appTheme } from '../theme/tokens';
+import { MockImageFrame } from '../components/mock/MockImageFrame';
+import { MockAvatar } from '../components/mock/MockAvatar';
+import { MOCK_AVATARS, MOCK_EMPTY_STATES, MOCK_EVENT_THEMES, getMockAvatarBySeed } from '../mock/mockVisualContent';
+import { MockEmptyState } from '../components/mock/MockEmptyState';
 
 type LobbyProps = {
   navigation: { navigate: (screen: string, params: Record<string, unknown>) => void };
@@ -82,6 +86,12 @@ export const MultiplayerLobby: React.FC<LobbyProps> = ({ navigation, route }) =>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.eyebrow}>Social Hunt</Text>
       <Text style={styles.title}>Multiplayer Rooms</Text>
+      <MockImageFrame
+        token={MOCK_EVENT_THEMES[0].token}
+        label={MOCK_EVENT_THEMES[0].name}
+        subtitle="Weekend challenge rooms are live"
+        style={styles.hero}
+      />
 
       <AppPanel style={styles.roomPanel}>
         <Text style={styles.panelTitle}>Start a Room</Text>
@@ -110,12 +120,25 @@ export const MultiplayerLobby: React.FC<LobbyProps> = ({ navigation, route }) =>
       <Text style={styles.info}>Rooms expire after 4 hours.</Text>
       <AppPanel style={styles.feedPanel}>
         <Text style={styles.panelTitle}>Live Activity</Text>
+        <View style={styles.avatarStrip}>
+          {MOCK_AVATARS.slice(0, 4).map((avatar) => (
+            <MockAvatar key={avatar.id} profile={avatar} status="active" />
+          ))}
+        </View>
         {mockActivity.map((event) => (
-          <Text key={event} style={styles.feedItem}>
-            • {event}
-          </Text>
+          <View key={event} style={styles.feedRow}>
+            <MockAvatar profile={getMockAvatarBySeed(event)} size={28} status="active" />
+            <Text style={styles.feedItem}>{event}</Text>
+          </View>
         ))}
       </AppPanel>
+      {!sessionHistory.length ? (
+        <MockEmptyState
+          token={{ ...MOCK_EVENT_THEMES[2].token, id: 'lobby-history-empty', type: 'emptyState', aspect: 'landscape' }}
+          title={MOCK_EMPTY_STATES.noHistory.title}
+          body={MOCK_EMPTY_STATES.noHistory.body}
+        />
+      ) : null}
       <LifetimeStatsPanel lifetime={lifetimeStats} recentSessions={sessionHistory} />
     </ScrollView>
   );
@@ -132,6 +155,7 @@ const styles = StyleSheet.create({
     marginBottom: appTheme.spacing.md,
     color: appTheme.colors.textPrimary,
   },
+  hero: { marginBottom: appTheme.spacing.sm },
   roomPanel: { marginBottom: appTheme.spacing.xs },
   panelTitle: { fontSize: appTheme.typography.subtitle, color: appTheme.colors.textPrimary, fontWeight: '700', marginBottom: appTheme.spacing.xs },
   panelSubtitle: { color: appTheme.colors.textSecondary, marginBottom: appTheme.spacing.sm },
@@ -150,5 +174,7 @@ const styles = StyleSheet.create({
   },
   info: { textAlign: 'center', color: appTheme.colors.textMuted, marginTop: appTheme.spacing.sm },
   feedPanel: { marginTop: appTheme.spacing.xs },
-  feedItem: { color: appTheme.colors.textSecondary, marginTop: appTheme.spacing.xxs },
+  avatarStrip: { flexDirection: 'row', gap: appTheme.spacing.xs, marginBottom: appTheme.spacing.xs },
+  feedRow: { flexDirection: 'row', alignItems: 'center', gap: appTheme.spacing.xs, marginTop: appTheme.spacing.xxs },
+  feedItem: { color: appTheme.colors.textSecondary, flex: 1 },
 });

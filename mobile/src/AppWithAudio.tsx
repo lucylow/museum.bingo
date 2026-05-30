@@ -17,6 +17,7 @@ import { LocationSettingsScreen } from './screens/LocationSettingsScreen';
 import { MultiplayerLobby } from './screens/MultiplayerLobby';
 import { MultiplayerGameScreen } from './screens/MultiplayerGameScreen';
 import { MuseumSelectorScreen } from './screens/MuseumSelectorScreen';
+import { SubscriptionScreen } from './screens/SubscriptionScreen';
 import { appTheme } from './theme/tokens';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -107,6 +108,7 @@ const AppNavigator: React.FC = () => {
               component={FeedbackSettingsScreen}
               options={{ title: 'Feedback Settings' }}
             />
+            <Stack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: 'Membership and Rewards' }} />
             <Stack.Screen
               name="Multiplayer"
               component={MultiplayerLobby}

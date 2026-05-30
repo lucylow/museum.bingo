@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Museum.Bingo AR Web</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    #ui {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      color: white;
+    }
+
+    #topbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pill {
+      pointer-events: auto;
+      background: rgba(20, 24, 35, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      border-radius: 999px;
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    #hud {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 20px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .card {
+      background: rgba(20, 24, 35, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      border-radius: 18px;
+      padding: 14px 16px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      margin: 0;
+      opacity: 0.85;
+      line-height: 1.4;
+    }
+
+    #reticle {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border: 2px solid rgba(0, 200, 255, 0.95);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      box-shadow: 0 0 18px rgba(0, 200, 255, 0.6);
+    }
+
+    #scanHint {
+      font-size: 13px;
+      opacity: 0.85;
+    }
+
+    button {
+      pointer-events: auto;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    #startBtn {
+      background: #00c8ff;
+      color: #001018;
+    }
+
+    #placeBtn {
+      background: #ffffff;
+      color: #101418;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div id="topbar">
+      <div class="pill">Museum.Bingo AR</div>
+      <div class="pill" id="status">Ready</div>
+    </div>
+
+    <div id="reticle"></div>
+
+    <div id="hud">
+      <div class="card">
+        <p class="title">Find artwork targets in AR</p>
+        <p class="subtitle" id="scanHint">
+          Tap Start AR, point at a flat surface, and place a bingo marker.
+        </p>
+      </div>
+      <button id="startBtn">Start AR</button>
+      <button id="placeBtn">Place Bingo Target</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+    import { ARButton } from "https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js";
+
+    let camera, scene, renderer;
+    let controller;
+    let reticle;
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
+    let targetPlaced = false;
+    let targetMesh = null;
+
+    const statusEl = document.getElementById("status");
+    const scanHint = document.getElementById("scanHint");
+    const startBtn = document.getElementById("startBtn");
+    const placeBtn = document.getElementById("placeBtn");
+    const reticleEl = document.getElementById("reticle");
+
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.6);
+      scene.add(light);
+
+      const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+      dir.position.set(1, 2, 1);
+      scene.add(dir);
+
+      controller = renderer.xr.getController(0);
+      scene.add(controller);
+
+      const ringGeo = new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00c8ff });
+      reticle = new THREE.Mesh(ringGeo, ringMat);
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+
+      const arBtn = ARButton.createButton(renderer, {
+        requiredFeatures: ["hit-test"],
+        optionalFeatures: ["dom-overlay"],
+        domOverlay: { root: document.body }
+      });
+      arBtn.style.display = "none";
+      document.body.appendChild(arBtn);
+
+      startBtn.addEventListener("click", () => arBtn.click());
+
+      placeBtn.addEventListener("click", () => {
+        if (!reticle.visible) return;
+        placeTarget(reticle.matrix);
+        targetPlaced = true;
+        placeBtn.style.display = "none";
+        statusEl.textContent = "Target placed";
+        scanHint.textContent = "Move around and scan the target. Tap again to place another.";
+      });
+
+      renderer.xr.addEventListener("sessionstart", () => {
+        statusEl.textContent = "AR active";
+        scanHint.textContent = "Move your phone slowly to detect a surface.";
+        startBtn.style.display = "none";
+        placeBtn.style.display = "inline-block";
+      });
+
+      renderer.xr.addEventListener("sessionend", () => {
+        statusEl.textContent = "Ready";
+        scanHint.textContent = "Tap Start AR, point at a flat surface, and place a bingo marker.";
+        startBtn.style.display = "inline-block";
+        placeBtn.style.display = "none";
+        targetPlaced = false;
+      });
+
+      window.addEventListener("resize", onWindowResize);
+    }
+
+    function placeTarget(matrix) {
+      if (targetMesh) scene.remove(targetMesh);
+
+      const group = new THREE.Group();
+
+      const boardGeo = new THREE.BoxGeometry(0.28, 0.18, 0.02);
+      const boardMat = new THREE.MeshStandardMaterial({
+        color: 0x121826,
+        metalness: 0.2,
+        roughness: 0.4
+      });
+      const board = new THREE.Mesh(boardGeo, boardMat);
+      group.add(board);
+
+      const frameGeo = new THREE.RingGeometry(0.09, 0.105, 32).rotateX(-Math.PI / 2);
+      const frameMat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
+      const frame = new THREE.Mesh(frameGeo, frameMat);
+      frame.position.set(0, 0.095, 0.011);
+      group.add(frame);
+
+      const textGeo = new THREE.PlaneGeometry(0.22, 0.05);
+      const canvas = document.createElement("canvas");
+      canvas.width = 1024;
+      canvas.height = 256;
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) return;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 72px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("BINGO TARGET", 512, 128);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      const textMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+      const text = new THREE.Mesh(textGeo, textMat);
+      text.position.set(0, 0, 0.013);
+      group.add(text);
+
+      group.matrix.fromArray(matrix.elements);
+      group.matrix.decompose(group.position, group.quaternion, group.scale);
+      group.scale.setScalar(1);
+      group.position.y += 0.02;
+
+      scene.add(group);
+      targetMesh = group;
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      renderer.setAnimationLoop(render);
+    }
+
+    function render(_timestamp, frame) {
+      if (frame) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if (!hitTestSourceRequested) {
+          session.requestReferenceSpace("viewer").then((viewerReferenceSpace) => {
+            session.requestHitTestSource({ space: viewerReferenceSpace }).then((source) => {
+              hitTestSource = source;
+            });
+          });
+
+          session.addEventListener("end", () => {
+            hitTestSourceRequested = false;
+            hitTestSource = null;
+          });
+
+          hitTestSourceRequested = true;
+        }
+
+        if (hitTestSource) {
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+          if (hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+
+            if (pose) {
+              reticle.visible = true;
+              reticle.matrix.fromArray(pose.transform.matrix);
+              reticleEl.style.display = "block";
+              reticleEl.style.left = "50%";
+              reticleEl.style.top = "50%";
+
+              if (!targetPlaced) {
+                statusEl.textContent = "Surface found";
+                scanHint.textContent = "Tap Place Bingo Target to drop the AR marker.";
+              }
+            }
+          } else {
+            reticle.visible = false;
+            reticleEl.style.display = "none";
+          }
+        }
+      }
+
+      if (targetMesh) {
+        targetMesh.rotation.y += 0.005;
+      }
+
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

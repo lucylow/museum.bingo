@@ -17,6 +17,10 @@ import { useBingoCelebration } from '../hooks/useBingoCelebration';
 import { useGameplayStats } from '../hooks/useGameplayStats';
 import { useGamificationStore } from '../store/gamificationStore';
 import { appTheme } from '../theme/tokens';
+import { MockImageFrame } from '../components/mock/MockImageFrame';
+import { MockBadgeArt } from '../components/mock/MockBadgeArt';
+import { MOCK_BADGE_ART, MOCK_EMPTY_STATES, MOCK_EVENT_THEMES } from '../mock/mockVisualContent';
+import { MockEmptyState } from '../components/mock/MockEmptyState';
 
 interface GameScreenWithGamificationProps {
   museumId: string;
@@ -233,6 +237,14 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
           accentColor="#A855F7"
         />
       </View>
+      <View style={styles.themeBanner}>
+        <MockImageFrame
+          token={MOCK_EVENT_THEMES[0].token}
+          label={MOCK_EVENT_THEMES[0].name}
+          subtitle="Seasonal challenge board"
+          compact
+        />
+      </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         <TranslatedBingoCard
@@ -240,6 +252,26 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
           completedTiles={gamificationState.tilesValidated}
           onTileValidate={(tileIdArg) => void handleTileValidation(tileIdArg)}
         />
+        <AppPanel style={styles.badgeShelf}>
+          <Text style={styles.badgeShelfTitle}>Reward shelf</Text>
+          <View style={styles.badgeRow}>
+            {(newBadges.length ? newBadges : BADGES.slice(0, 4)).map((badge) => (
+              <MockBadgeArt
+                key={badge.id}
+                token={MOCK_BADGE_ART[badge.id] ?? MOCK_BADGE_ART.first_scan}
+                rarity={badge.rarity}
+                iconText={badge.icon}
+              />
+            ))}
+          </View>
+          {!newBadges.length ? (
+            <MockEmptyState
+              token={{ ...MOCK_EVENT_THEMES[2].token, type: 'emptyState', id: 'badge-shelf-empty', aspect: 'landscape' }}
+              title={MOCK_EMPTY_STATES.noBadges.title}
+              body={MOCK_EMPTY_STATES.noBadges.body}
+            />
+          ) : null}
+        </AppPanel>
       </ScrollView>
 
       {localPointsPopup ? (
@@ -291,7 +323,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: appTheme.spacing.sm,
     paddingTop: appTheme.spacing.xs,
   },
+  themeBanner: {
+    marginHorizontal: appTheme.spacing.sm,
+    marginBottom: appTheme.spacing.xs,
+  },
   content: { padding: appTheme.spacing.xs, paddingBottom: appTheme.spacing.xl },
+  badgeShelf: { marginTop: appTheme.spacing.sm },
+  badgeShelfTitle: {
+    color: appTheme.colors.textPrimary,
+    fontSize: appTheme.typography.body,
+    fontWeight: '800',
+    marginBottom: appTheme.spacing.xs,
+  },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: appTheme.spacing.sm, marginBottom: appTheme.spacing.xs },
   recapLink: {
     textAlign: 'center',
     marginBottom: appTheme.spacing.sm,

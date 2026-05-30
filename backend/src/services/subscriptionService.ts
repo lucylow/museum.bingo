@@ -8,6 +8,40 @@ type SubscriptionStatus = {
   expiresAt: Date | null;
 };
 
+type PartnerSubscriptionLevel = 'none' | 'starter' | 'white_label' | 'enterprise';
+
+type MonetizationEntitlements = {
+  unlimitedMuseums: boolean;
+  advancedArHints: boolean;
+  extendedStatsHistory: boolean;
+  galleryQuestPass: boolean;
+  premiumCardSkins: boolean;
+  avatarFramesAndNameEffects: boolean;
+  specialConfettiStyles: boolean;
+  familyModeRooms: boolean;
+  classroomPack: boolean;
+  groupLeaderboardsAndCoop: boolean;
+  hintPacks: boolean;
+  bonusDailyChallengeCards: boolean;
+  speedRunMode: boolean;
+  collectibleStorageShelves: boolean;
+  tokenDrops: boolean;
+  premiumShareExports: boolean;
+  sponsoredChallenges: boolean;
+  ticketAndGiftShopOffers: boolean;
+  museumWhiteLabel: boolean;
+  brandedArOverlays: boolean;
+  visitorEngagementAnalytics: boolean;
+};
+
+type MonetizationState = {
+  subscription: SubscriptionStatus;
+  entitlements: MonetizationEntitlements;
+  activeAddOns: string[];
+  partnerSubscriptionLevel: PartnerSubscriptionLevel;
+  suggestedUpsells: string[];
+};
+
 export class SubscriptionService {
   static async createCheckoutSession(
     userId: string,
@@ -74,6 +108,44 @@ export class SubscriptionService {
     return this.mapSubscriptionStatus(subscription);
   }
 
+  static async getUserMonetizationState(userId: string): Promise<MonetizationState> {
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data() as
+      | {
+          stripeSubscriptionId?: string;
+          monetizationAddOns?: string[];
+          seasonalPassActive?: boolean;
+          partnerSubscriptionLevel?: PartnerSubscriptionLevel;
+        }
+      | undefined;
+
+    const subscriptionId = userData?.stripeSubscriptionId;
+    let subscription: SubscriptionStatus = { isActive: false, tier: null, expiresAt: null };
+    if (subscriptionId) {
+      const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
+      subscription = this.mapSubscriptionStatus(stripeSubscription);
+    }
+
+    const activeAddOns = Array.isArray(userData?.monetizationAddOns) ? userData?.monetizationAddOns : [];
+    const partnerSubscriptionLevel: PartnerSubscriptionLevel = userData?.partnerSubscriptionLevel || 'none';
+    const seasonalPassActive = Boolean(userData?.seasonalPassActive) || subscription.tier === 'PREMIUM_YEARLY';
+
+    const entitlements = this.buildMonetizationEntitlements(
+      subscription,
+      activeAddOns,
+      seasonalPassActive,
+      partnerSubscriptionLevel
+    );
+
+    return {
+      subscription,
+      entitlements,
+      activeAddOns,
+      partnerSubscriptionLevel,
+      suggestedUpsells: this.buildSuggestedUpsells(entitlements),
+    };
+  }
+
   static getTierFromPriceId(priceId: string | null | undefined): string | null {
     if (!priceId) {
       return null;
@@ -96,6 +168,64 @@ export class SubscriptionService {
       : null;
 
     return { isActive, tier, expiresAt };
+  }
+
+  private static buildMonetizationEntitlements(
+    subscription: SubscriptionStatus,
+    activeAddOns: string[],
+    seasonalPassActive: boolean,
+    partnerSubscriptionLevel: PartnerSubscriptionLevel
+  ): MonetizationEntitlements {
+    const hasPremium = subscription.isActive;
+    const hasFamilyPlan = subscription.tier === 'FAMILY_MONTHLY';
+    const hasAddOn = (addOnId: string): boolean => activeAddOns.includes(addOnId);
+    const hasPartnerAccess = partnerSubscriptionLevel !== 'none';
+
+    return {
+      unlimitedMuseums: hasPremium,
+      advancedArHints: hasPremium,
+      extendedStatsHistory: hasPremium,
+      galleryQuestPass: seasonalPassActive,
+      premiumCardSkins: hasPremium || hasAddOn('premium_card_skins'),
+      avatarFramesAndNameEffects: hasPremium || hasAddOn('avatar_frames'),
+      specialConfettiStyles: hasPremium || hasAddOn('confetti_styles'),
+      familyModeRooms: hasPremium || hasFamilyPlan,
+      classroomPack: hasFamilyPlan || hasAddOn('classroom_pack'),
+      groupLeaderboardsAndCoop: hasPremium || hasFamilyPlan,
+      hintPacks: hasAddOn('hint_packs'),
+      bonusDailyChallengeCards: hasPremium || hasAddOn('bonus_daily_challenges'),
+      speedRunMode: hasPremium || hasAddOn('speed_run_mode'),
+      collectibleStorageShelves: hasPremium || hasAddOn('collectible_storage'),
+      tokenDrops: seasonalPassActive || hasAddOn('token_drops'),
+      premiumShareExports: hasPremium || hasAddOn('premium_share_cards'),
+      sponsoredChallenges: hasPartnerAccess || hasAddOn('sponsored_challenges'),
+      ticketAndGiftShopOffers: hasPartnerAccess || hasAddOn('ticket_and_shop_promotions'),
+      museumWhiteLabel: partnerSubscriptionLevel === 'white_label' || partnerSubscriptionLevel === 'enterprise',
+      brandedArOverlays: hasPartnerAccess,
+      visitorEngagementAnalytics: hasPartnerAccess,
+    };
+  }
+
+  private static buildSuggestedUpsells(entitlements: MonetizationEntitlements): string[] {
+    const suggestions: string[] = [];
+
+    if (!entitlements.galleryQuestPass) {
+      suggestions.push('gallery_quest_pass');
+    }
+    if (!entitlements.premiumCardSkins) {
+      suggestions.push('premium_card_skins');
+    }
+    if (!entitlements.hintPacks) {
+      suggestions.push('hint_packs');
+    }
+    if (!entitlements.collectibleStorageShelves) {
+      suggestions.push('collectible_storage');
+    }
+    if (!entitlements.premiumShareExports) {
+      suggestions.push('premium_share_cards');
+    }
+
+    return suggestions;
   }
 
   private static async getOrCreateCustomerId(userId: string, email: string): Promise<string> {

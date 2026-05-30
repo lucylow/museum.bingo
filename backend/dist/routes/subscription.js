@@ -13,6 +13,9 @@ const router = express_1.default.Router();
 router.get('/tiers', (_req, res) => {
     res.json(config_1.TIERS);
 });
+router.get('/catalog', (_req, res) => {
+    res.json(config_1.MONETIZATION_CATALOG);
+});
 router.post('/create-checkout', auth_1.verifyFirebaseToken, async (req, res) => {
     const { priceId, successUrl, cancelUrl } = req.body;
     const user = req.user;
@@ -45,6 +48,21 @@ router.get('/status', auth_1.verifyFirebaseToken, async (req, res) => {
     try {
         const status = await subscriptionService_1.SubscriptionService.getUserSubscriptionStatus(user.uid);
         res.json(status);
+    }
+    catch (error) {
+        const handled = (0, stripeErrorHandler_1.handleStripeError)(error);
+        res.status(handled.statusCode).json({ error: handled.message });
+    }
+});
+router.get('/entitlements', auth_1.verifyFirebaseToken, async (req, res) => {
+    const user = req.user;
+    if (!user?.uid) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+    try {
+        const state = await subscriptionService_1.SubscriptionService.getUserMonetizationState(user.uid);
+        res.json(state);
     }
     catch (error) {
         const handled = (0, stripeErrorHandler_1.handleStripeError)(error);

@@ -6,6 +6,9 @@ import { api } from '../api/client';
 import { useLocation } from '../context/LocationContext';
 import { RootStackParamList } from '../navigation/types';
 import { museumDetection } from '../services/MuseumDetectionService';
+import { MockImageFrame } from '../components/mock/MockImageFrame';
+import { MockEmptyState } from '../components/mock/MockEmptyState';
+import { MOCK_EMPTY_STATES, MOCK_MUSEUMS } from '../mock/mockVisualContent';
 
 interface Museum {
   placeId: string;
@@ -88,13 +91,33 @@ export const MuseumSelectorScreen: React.FC = () => {
       <FlatList
         data={filteredMuseums}
         keyExtractor={(item) => item.placeId}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.museumItem} onPress={() => handleSelectMuseum(item)}>
+        renderItem={({ item, index }) => {
+          const mock = MOCK_MUSEUMS[index % MOCK_MUSEUMS.length];
+          const isActive = index === 0;
+          return (
+          <TouchableOpacity style={[styles.museumItem, isActive && styles.activeMuseumItem]} onPress={() => handleSelectMuseum(item)}>
+            <MockImageFrame
+              token={mock.token}
+              label={item.name}
+              subtitle={`${mock.promptCount} prompts • ${mock.roomCount} rooms`}
+              style={styles.cardVisual}
+            />
+            <View style={styles.cardHeader}>
             <Text style={styles.museumName}>{item.name}</Text>
+              <Text style={[styles.status, isActive && styles.statusActive]}>{isActive ? 'Active' : mock.visitStatus}</Text>
+            </View>
             <Text style={styles.museumAddress}>{item.formattedAddress}</Text>
+            <Text style={styles.meta}>{mock.locationLabel}</Text>
           </TouchableOpacity>
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>No museums found nearby</Text>}
+          );
+        }}
+        ListEmptyComponent={
+          <MockEmptyState
+            token={{ ...MOCK_MUSEUMS[0].token, type: 'emptyState', id: 'museum-selector-empty', label: 'No museums found' }}
+            title={MOCK_EMPTY_STATES.noMuseum.title}
+            body={MOCK_EMPTY_STATES.noMuseum.body}
+          />
+        }
       />
     </View>
   );
@@ -115,7 +138,28 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     elevation: 2,
   },
+  activeMuseumItem: {
+    borderWidth: 1,
+    borderColor: '#7AA7FF',
+    shadowOpacity: 0.18,
+  },
+  cardVisual: { marginBottom: 10 },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   museumName: { fontSize: 18, fontWeight: '600' },
+  status: {
+    textTransform: 'capitalize',
+    color: '#707b8e',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  statusActive: {
+    color: '#3E63DD',
+  },
   museumAddress: { fontSize: 14, color: '#666', marginTop: 4 },
+  meta: { marginTop: 6, color: '#4F5F80', fontSize: 12, fontWeight: '600' },
   empty: { textAlign: 'center', color: '#888', marginTop: 40 },
 });

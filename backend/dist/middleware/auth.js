@@ -13,7 +13,7 @@ async function authenticateToken(req, res, next) {
     }
     try {
         const decoded = await firebase_1.auth.verifyIdToken(token);
-        req.user = { uid: decoded.uid, email: decoded.email };
+        req.user = { uid: decoded.uid, email: decoded.email, displayName: decoded.name };
         next();
     }
     catch {
@@ -30,7 +30,7 @@ async function optionalAuth(req, _res, next) {
     }
     try {
         const decoded = await firebase_1.auth.verifyIdToken(token);
-        req.user = { uid: decoded.uid, email: decoded.email };
+        req.user = { uid: decoded.uid, email: decoded.email, displayName: decoded.name };
     }
     catch {
         // Ignore optional auth failures.

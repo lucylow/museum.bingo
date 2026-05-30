@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLanguage } from '../context/LanguageContext';
 import { translationService } from '../services/TranslationService';
+import { getMockArtworkBySeed } from '../mock/mockVisualContent';
+import { MockImageFrame } from './mock/MockImageFrame';
 
 interface ArtworkInfo {
   title: string;
@@ -71,6 +73,12 @@ export const ArtworkInfoPanel: React.FC<Props> = ({ artwork, onClose }) => {
         <ActivityIndicator size="large" color="#4CAF50" style={styles.loader} />
       ) : (
         <>
+          <MockImageFrame
+            token={getMockArtworkBySeed(translated.title).token}
+            label={translated.title}
+            subtitle={translated.artist}
+            style={styles.hero}
+          />
           <Text style={styles.title}>{translated.title}</Text>
           <Text style={styles.artist}>{translated.artist}</Text>
           {translated.period && <Text style={styles.metadata}>Period: {translated.period}</Text>}
@@ -96,6 +104,7 @@ const styles = StyleSheet.create({
   closeButton: { alignSelf: 'flex-end', padding: 4 },
   closeText: { fontSize: 18, color: '#999' },
   loader: { marginVertical: 40 },
+  hero: { marginBottom: 12 },
   title: { fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
   artist: { fontSize: 16, color: '#555', marginBottom: 12 },
   metadata: { fontSize: 14, color: '#777', marginBottom: 4 },

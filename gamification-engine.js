@@ -18,7 +18,9 @@ const EVENT_TYPES = Object.freeze({
     ROOM_JOINED: "room_joined",
     ROOM_LEFT: "room_left",
     LEADERBOARD_CHANGED: "leaderboard_changed",
-    SCAN_FAILED: "scan_failed"
+    SCAN_FAILED: "scan_failed",
+    TOKEN_UNLOCKED: "token_unlocked",
+    TOKEN_MINT_UPDATED: "token_mint_updated"
 });
 
 function toSet(input) {
@@ -44,6 +46,7 @@ function createGamificationEngine(config = {}) {
     const difficultyMode = config.difficultyMode || "standard";
     const roomMode = config.roomMode || "multiplayer";
     const dailyChallengeEnabled = config.dailyChallengeEnabled !== false;
+    const seasonId = config.seasonId || "season_genesis";
     const streakResetMs = rules.DIFFICULTY_PRESETS[difficultyMode]
         ? rules.DIFFICULTY_PRESETS[difficultyMode].streakResetMs
         : rules.DIFFICULTY_PRESETS.standard.streakResetMs;
@@ -54,6 +57,7 @@ function createGamificationEngine(config = {}) {
         totalMuseumsCompleted: 0,
         bestStreak: 0,
         badges: [],
+        nftTokens: [],
         recentActivity: []
     };
 
@@ -70,6 +74,7 @@ function createGamificationEngine(config = {}) {
         completionState: rules.CARD_COMPLETION_STATES.NO_LINE,
         nextBestTile: null,
         badges: [],
+        nftTokens: [],
         rank: null,
         rankDelta: 0,
         leaderboard: [],
@@ -91,13 +96,15 @@ function createGamificationEngine(config = {}) {
             playerName: config.playerName || "Guest",
             difficultyMode,
             roomMode,
-            dailyChallengeEnabled
+            dailyChallengeEnabled,
+            seasonId
         },
         lastSuccessAt: null,
         events: []
     };
 
     state.lifetime.badges = Array.isArray(state.lifetime.badges) ? state.lifetime.badges : [];
+    state.lifetime.nftTokens = Array.isArray(state.lifetime.nftTokens) ? state.lifetime.nftTokens : [];
     state.lifetime.recentActivity = Array.isArray(state.lifetime.recentActivity) ? state.lifetime.recentActivity : [];
 
     function emit(eventName, payload) {
@@ -171,11 +178,13 @@ function createGamificationEngine(config = {}) {
             completionState: snapshot.completionState,
             lifetime: snapshot.lifetime,
             badges: snapshot.badges,
+            nftTokens: snapshot.nftTokens,
             daily: snapshot.daily,
             session: {
                 difficultyMode: snapshot.session.difficultyMode,
                 roomMode: snapshot.session.roomMode,
-                dailyChallengeEnabled: snapshot.session.dailyChallengeEnabled
+                dailyChallengeEnabled: snapshot.session.dailyChallengeEnabled,
+                seasonId: snapshot.session.seasonId
             }
         };
     }
@@ -229,6 +238,39 @@ function createGamificationEngine(config = {}) {
         return badge;
     }
 
+    function addToken(tokenDefinition) {
+        if (!tokenDefinition || !tokenDefinition.id) return null;
+        const existsInSession = state.nftTokens.some((token) => token.id === tokenDefinition.id);
+        if (existsInSession) return null;
+        const token = {
+            id: tokenDefinition.id,
+            name: tokenDefinition.name,
+            description: tokenDefinition.description,
+            icon: tokenDefinition.icon || "🪙",
+            rarity: tokenDefinition.rarity || "common",
+            tier: Number(tokenDefinition.tier || 1),
+            utility: tokenDefinition.utility || "Profile collectible",
+            category: tokenDefinition.category || "achievement",
+            seasonId: tokenDefinition.seasonId || state.session.seasonId || "season_genesis",
+            optionalMint: tokenDefinition.optionalMint !== false,
+            minted: false,
+            mintStatus: "unminted",
+            walletAddress: null,
+            earnedAt: new Date().toISOString()
+        };
+        state.nftTokens.push(token);
+        if (!state.lifetime.nftTokens.some((saved) => saved.id === token.id)) {
+            state.lifetime.nftTokens.push(token);
+        }
+        pushEvent(EVENT_TYPES.TOKEN_UNLOCKED, {
+            tokenId: token.id,
+            tokenName: token.name,
+            rarity: token.rarity,
+            utility: token.utility
+        });
+        return token;
+    }
+
     function evaluateAchievements(context) {
         const unlocked = [];
         const candidateBadges = rules.evaluateBadgeUnlocks({
@@ -248,6 +290,33 @@ function createGamificationEngine(config = {}) {
         return unlocked;
     }
 
+    function evaluateTokenUnlocks(context) {
+        const unlocked = [];
+        if (typeof rules.evaluateNftUnlocks !== "function") return unlocked;
+        const candidateTokens = rules.evaluateNftUnlocks({
+            lifetimeScans: state.lifetime.totalScans,
+            lineCount: state.bingoLines.size,
+            isFullCard: state.hasFullCard,
+            streak: state.streak,
+            rank: state.rank,
+            dailyChallengeCompleted: Boolean(state.daily.challengeCompleted),
+            seasonId: state.session.seasonId || context.seasonId || "season_genesis",
+            awardedTokenIds: state.nftTokens.map((token) => token.id)
+        });
+        candidateTokens.forEach((candidate) => {
+            const token = addToken(candidate);
+            if (token) unlocked.push(token);
+        });
+        return unlocked;
+    }
+
+    function evaluateCollectibles(context) {
+        return {
+            unlockedBadges: evaluateAchievements(context),
+            unlockedTokens: evaluateTokenUnlocks(context)
+        };
+    }
+
     function applyLeaderboard(entries) {
         const previousRank = state.rank || null;
         const sorted = [...entries].sort((a, b) => {
@@ -265,7 +334,7 @@ function createGamificationEngine(config = {}) {
             rankDelta: state.rankDelta,
             totalPlayers: state.leaderboard.length
         });
-        evaluateAchievements({ scanDurationMs: Number.MAX_SAFE_INTEGER });
+        evaluateCollectibles({ scanDurationMs: Number.MAX_SAFE_INTEGER, seasonId: state.session.seasonId });
     }
 
     function getDailyProgress() {
@@ -391,7 +460,10 @@ function createGamificationEngine(config = {}) {
             change: rules.detectStreakChange(previousStreak, state.streak)
         });
 
-        const unlockedBadges = evaluateAchievements({ scanDurationMs: payload.scanDurationMs || Number.MAX_SAFE_INTEGER });
+        const collectibleRewards = evaluateCollectibles({
+            scanDurationMs: payload.scanDurationMs || Number.MAX_SAFE_INTEGER,
+            seasonId: state.session.seasonId
+        });
 
         return {
             accepted: true,
@@ -407,9 +479,31 @@ function createGamificationEngine(config = {}) {
             bingoLines: state.bingoLines.size,
             completionState: state.completionState,
             nextBestTile: state.nextBestTile,
-            unlockedBadges,
+            unlockedBadges: collectibleRewards.unlockedBadges,
+            unlockedTokens: collectibleRewards.unlockedTokens,
             event
         };
+    }
+
+    function requestTokenMint({ tokenId, walletAddress } = {}) {
+        const target = state.nftTokens.find((token) => token.id === tokenId);
+        if (!target) return { accepted: false, reason: "token_not_found" };
+        if (target.minted) return { accepted: false, reason: "already_minted", token: { ...target } };
+        target.minted = true;
+        target.mintStatus = "minted";
+        target.walletAddress = walletAddress || null;
+        const lifetimeToken = state.lifetime.nftTokens.find((token) => token.id === tokenId);
+        if (lifetimeToken) {
+            lifetimeToken.minted = true;
+            lifetimeToken.mintStatus = "minted";
+            lifetimeToken.walletAddress = target.walletAddress;
+        }
+        pushEvent(EVENT_TYPES.TOKEN_MINT_UPDATED, {
+            tokenId: target.id,
+            walletAddress: target.walletAddress,
+            mintStatus: target.mintStatus
+        });
+        return { accepted: true, token: { ...target } };
     }
 
     function getRoomEntry() {
@@ -439,6 +533,8 @@ function createGamificationEngine(config = {}) {
                 ...(savedState.lifetime || {})
             };
             state.badges = Array.isArray(savedState.badges) ? savedState.badges : [];
+            state.nftTokens = Array.isArray(savedState.nftTokens) ? savedState.nftTokens : [];
+            state.lifetime.nftTokens = Array.isArray(state.lifetime.nftTokens) ? state.lifetime.nftTokens : [];
             if (savedState.daily) {
                 state.daily = {
                     ...state.daily,
@@ -452,6 +548,7 @@ function createGamificationEngine(config = {}) {
                     ...savedState.session
                 };
             }
+            state.session.seasonId = state.session.seasonId || config.seasonId || "season_genesis";
             recalculateCompletionState();
         }
     }
@@ -462,6 +559,7 @@ function createGamificationEngine(config = {}) {
         config: scoringConfig,
         events: EVENT_TYPES,
         achievements: rules.BADGE_DEFINITIONS,
+        tokenRewards: rules.NFT_TOKEN_DEFINITIONS || [],
         on: (listener) => {
             listeners.add(listener);
             return () => listeners.delete(listener);
@@ -476,6 +574,7 @@ function createGamificationEngine(config = {}) {
         getDailyProgress,
         getProgressRatio,
         getLineCount,
+        requestTokenMint,
         getStateSnapshot,
         persistableState,
         hydrate
@@ -486,5 +585,6 @@ window.GamificationEngine = {
     createGamificationEngine,
     EVENT_TYPES,
     ACHIEVEMENT_DEFINITIONS: window.BingoRules ? window.BingoRules.BADGE_DEFINITIONS : [],
+    TOKEN_DEFINITIONS: window.BingoRules ? window.BingoRules.NFT_TOKEN_DEFINITIONS : [],
     DEFAULT_SCORING_CONFIG
 };

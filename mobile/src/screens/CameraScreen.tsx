@@ -9,6 +9,8 @@ import { ArtworkRecognizer, RecognitionResult } from '../ai/ArtworkRecognizer';
 import { EmbeddingDownloader } from '../ai/EmbeddingDownloader';
 import { gameplayStatsTracker } from '../stats/tracker';
 import { appTheme } from '../theme/tokens';
+import { getMockArtworkBySeed } from '../mock/mockVisualContent';
+import { MockImageFrame } from '../components/mock/MockImageFrame';
 
 interface CameraScreenProps {
   museumId: string;
@@ -126,10 +128,17 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       </View>
 
       {recognitionState === 'recognized' && lastResult && (
-        <View style={styles.recognitionBadge}>
+        <View style={styles.resultCard}>
+          <MockImageFrame
+            token={getMockArtworkBySeed(lastResult.artworkId).token}
+            label={lastResult.artworkTitle}
+            subtitle="Match confirmed"
+            style={styles.preview}
+          />
           <Text style={styles.badgeText}>
-            ✓ {lastResult.artworkTitle} ({Math.round(lastResult.confidence * 100)}%)
+            ✓ {lastResult.artworkTitle}
           </Text>
+          <Text style={styles.meta}>Confidence {Math.round(lastResult.confidence * 100)}% • +10 pts • Tile completed</Text>
         </View>
       )}
 
@@ -157,19 +166,21 @@ const styles = StyleSheet.create({
   panelTitle: { color: appTheme.colors.textPrimary, marginBottom: appTheme.spacing.xs, textAlign: 'center', fontWeight: '700' },
   track: { height: 6, backgroundColor: appTheme.colors.bgMuted, borderRadius: appTheme.radius.pill, overflow: 'hidden' },
   fill: { height: '100%', backgroundColor: appTheme.colors.accentSuccess },
-  recognitionBadge: {
+  resultCard: {
     position: 'absolute',
-    bottom: 92,
+    bottom: 72,
     left: 20,
     right: 20,
     backgroundColor: appTheme.colors.overlayDark,
     padding: 12,
-    borderRadius: appTheme.radius.pill,
-    alignItems: 'center',
+    borderRadius: appTheme.radius.lg,
+    alignItems: 'flex-start',
     borderWidth: 1,
     borderColor: appTheme.colors.accentSuccess,
   },
+  preview: { width: '100%', marginBottom: appTheme.spacing.xs },
   badgeText: { color: appTheme.colors.textPrimary, fontWeight: 'bold' },
+  meta: { marginTop: 4, color: appTheme.colors.textSecondary, fontSize: appTheme.typography.caption },
   closeButton: {
     position: 'absolute',
     top: 50,
