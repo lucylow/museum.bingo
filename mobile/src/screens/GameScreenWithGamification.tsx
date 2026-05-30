@@ -232,6 +232,12 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
     : '0_0';
   const activeArtwork = getMockArtworkBySeed(focusedTileId ?? unresolvedTileId);
 
+  useEffect(() => {
+    if (immersiveActive && fallbackTier === 'fallback2D') {
+      setImmersiveActive(false);
+    }
+  }, [fallbackTier, immersiveActive]);
+
   if (scanModeActive) {
     return (
       <CameraScreenWithHeatVision
