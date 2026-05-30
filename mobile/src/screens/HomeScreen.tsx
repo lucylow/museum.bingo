@@ -86,6 +86,7 @@ export const HomeScreen: React.FC = () => {
         <Text style={styles.permissionWarning}>Location permission required for auto-detection.</Text>
       ) : null}
       <AppButton label="Location Settings" onPress={() => navigation.navigate('LocationSettings')} variant="ghost" />
+      <AppButton label="Immersive Settings" onPress={() => navigation.navigate('ImmersiveSettings')} variant="ghost" />
     </SafeAreaView>
   );
 };
