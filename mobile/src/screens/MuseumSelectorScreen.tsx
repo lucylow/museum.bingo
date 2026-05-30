@@ -28,6 +28,7 @@ export const MuseumSelectorScreen: React.FC = () => {
   const [museums, setMuseums] = useState<Museum[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userLocation) return;
@@ -41,6 +42,7 @@ export const MuseumSelectorScreen: React.FC = () => {
       return;
     }
     setLoading(true);
+    setFetchError(null);
     try {
       const response = await api.get<Museum[]>('/places/nearby', {
         params: {
@@ -51,9 +53,9 @@ export const MuseumSelectorScreen: React.FC = () => {
         },
       });
       setMuseums(response.data);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error(error);
+    } catch {
+      setMuseums([]);
+      setFetchError('Unable to load nearby museums right now.');
     } finally {
       setLoading(false);
     }
@@ -73,12 +75,16 @@ export const MuseumSelectorScreen: React.FC = () => {
       return;
     }
 
-    museumDetection.setManualMuseumSelection({
-      placeId: museum.placeId,
-      name: museum.name,
-      location: museum.location,
-    });
-    navigation.navigate('Game', { museumId: museum.placeId, museumName: museum.name });
+    try {
+      museumDetection.setManualMuseumSelection({
+        placeId: museum.placeId,
+        name: museum.name,
+        location: museum.location,
+      });
+      navigation.navigate('Game', { museumId: museum.placeId, museumName: museum.name });
+    } catch {
+      Alert.alert('Selection failed', 'We could not save that museum selection. Please try again.');
+    }
   };
 
   const filteredMuseums = useMemo(() => {
@@ -104,6 +110,7 @@ export const MuseumSelectorScreen: React.FC = () => {
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
+      {fetchError ? <Text style={styles.errorText}>{fetchError}</Text> : null}
       <FlatList
         data={filteredMuseums}
         keyExtractor={(item) => item.placeId}
@@ -135,6 +142,9 @@ export const MuseumSelectorScreen: React.FC = () => {
           />
         }
       />
+      <TouchableOpacity style={styles.retryButton} onPress={() => void fetchNearbyMuseums()}>
+        <Text style={styles.retryButtonText}>Retry Nearby Search</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -144,6 +154,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 16 },
   searchInput: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 16 },
+  errorText: { marginBottom: 12, color: '#B42318', fontSize: 13 },
   museumItem: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -178,4 +189,12 @@ const styles = StyleSheet.create({
   museumAddress: { fontSize: 14, color: '#666', marginTop: 4 },
   meta: { marginTop: 6, color: '#4F5F80', fontSize: 12, fontWeight: '600' },
   empty: { textAlign: 'center', color: '#888', marginTop: 40 },
+  retryButton: {
+    marginTop: 8,
+    backgroundColor: '#2F6FED',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  retryButtonText: { color: '#fff', fontWeight: '700' },
 });

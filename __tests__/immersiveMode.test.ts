@@ -3,6 +3,7 @@ import {
   defaultImmersiveSettings,
   getDirectionalCue,
   getMoveCloserCue,
+  getTurnCue,
 } from '../mobile/src/immersive/immersiveSystem';
 import {
   classifyPerformanceTier,
@@ -23,6 +24,13 @@ describe('immersive system', () => {
     expect(getMoveCloserCue(6)).toBe('close');
     expect(getMoveCloserCue(16)).toBe('move-closer');
     expect(getMoveCloserCue(42)).toBe('far');
+  });
+
+  test('creates nuanced turn cues', () => {
+    expect(getTurnCue(0)).toBe('On heading');
+    expect(getTurnCue(78)).toBe('Turn slightly right');
+    expect(getTurnCue(120)).toBe('Turn right');
+    expect(getTurnCue(182)).toBe('Turn around');
   });
 
   test('comfort mode clamps motion intensity', () => {

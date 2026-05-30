@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { scanAndValidateArtwork } from '../api/artwork';
 import { getMuseumBingoCard } from '../api/museum';
 import { BadgeUnlockToast } from '../components/BadgeUnlockToast';
@@ -54,6 +54,7 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
   const [immersiveActive, setImmersiveActive] = useState(false);
   const [scanModeActive, setScanModeActive] = useState(false);
   const [focusedTileId, setFocusedTileId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const gamificationState = useGamificationStore();
   const { triggerCelebration } = useBingoCelebration();
@@ -64,7 +65,13 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
 
   useEffect(() => {
     gamificationState.resetSession(museumId, userId, sessionId);
-    void getMuseumBingoCard(museumId).then(setCard);
+    setLoadError(null);
+    void getMuseumBingoCard(museumId)
+      .then(setCard)
+      .catch(() => {
+        setCard([]);
+        setLoadError('Unable to load bingo card. Check your connection and try again.');
+      });
     startSession({
       userId,
       sessionId,
@@ -87,6 +94,12 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [museumId, sessionId, userId]);
+
+  useEffect(() => {
+    if (immersiveSettings.enabled) {
+      setImmersiveActive(true);
+    }
+  }, [immersiveSettings.enabled]);
 
   const handleTileValidation = async (tileId: string) => {
     const scanStartedAt = Date.now();
@@ -221,6 +234,16 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
     setFocusedTileId(tileId);
   };
 
+  const runTileValidationSafely = async (tileId: string): Promise<boolean> => {
+    try {
+      await handleTileValidation(tileId);
+      return true;
+    } catch {
+      Alert.alert('Scan failed', 'We could not validate that tile right now. Please try again.');
+      return false;
+    }
+  };
+
   const fallbackTier = classifyPerformanceTier(immersiveSettings.lowPowerMode ? 36 : 18);
   const adaptiveIntensity = computeAdaptiveIntensity(fallbackTier, {
     motion: immersiveSettings.motionSensitivity,
@@ -244,12 +267,7 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
         museumId={museumId}
         artworks={[]}
         onArtworkValidated={async (_artworkId, tileId) => {
-          try {
-            await handleTileValidation(tileId);
-            return true;
-          } catch {
-            return false;
-          }
+          return runTileValidationSafely(tileId);
         }}
         userId={userId}
         sessionId={sessionId}
@@ -275,30 +293,36 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
             <Text style={styles.score}>⭐ {gamificationState.totalScore}</Text>
             <Text style={styles.immersiveHint}>Move phone for depth • Tap card focus</Text>
             <Text style={styles.immersiveTier}>Tier {fallbackTier}</Text>
+            {fallbackTier === 'fallback2D' ? <Text style={styles.fallbackHint}>Performance fallback active</Text> : null}
           </View>
-          <View style={styles.immersiveCardWrap}>
-            <FloatingArtworkCard3D
-              token={activeArtwork.token}
-              title={activeArtwork.title}
-              artist={activeArtwork.artist}
-              museumLabel={activeArtwork.museumLabel}
-              statusLabel={focusedTileId ? 'Focused target' : 'Active target'}
-              bonusLabel={gamificationState.currentStreak >= 2 ? 'Streak bonus active' : undefined}
-              highlighted
-              tiltX={motion.tiltX}
-              tiltY={motion.tiltY}
-              onPress={() => setScanModeActive(true)}
-            />
-          </View>
+          {!immersiveSettings.minimalOverlayMode ? (
+            <View style={styles.immersiveCardWrap}>
+              <FloatingArtworkCard3D
+                token={activeArtwork.token}
+                title={activeArtwork.title}
+                artist={activeArtwork.artist}
+                museumLabel={activeArtwork.museumLabel}
+                statusLabel={focusedTileId ? 'Focused target' : 'Active target'}
+                bonusLabel={gamificationState.currentStreak >= 2 ? 'Streak bonus active' : undefined}
+                highlighted
+                tiltX={motion.tiltX}
+                tiltY={motion.tiltY}
+                onPress={() => setScanModeActive(true)}
+              />
+            </View>
+          ) : null}
           <SpatialWaypointOverlay
             relativeBearing={motion.heading}
             distanceMeters={Math.max(3, 28 - gamificationState.tilesValidated.length)}
             targetTitle={activeArtwork.title}
+            compact={immersiveSettings.minimalOverlayMode}
           />
           <SpatialBingoBoard
             card={card}
             completedTiles={gamificationState.tilesValidated}
-            onTileValidate={(tileIdArg) => void handleTileValidation(tileIdArg)}
+            onTileValidate={(tileIdArg) => {
+              void runTileValidationSafely(tileIdArg);
+            }}
             focusedTileId={focusedTileId}
             onFocusTile={setFocusedTileId}
           />
@@ -319,6 +343,7 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
             />
             <RankChangeIndicator change={gamificationState.rankChange} />
           </AppPanel>
+          {loadError ? <Text style={styles.errorText}>{loadError}</Text> : null}
           <View style={styles.statsRow}>
             <StatCard
               title="Accuracy"
@@ -352,7 +377,9 @@ export const GameScreenWithGamification: React.FC<GameScreenWithGamificationProp
             <TranslatedBingoCard
               card={card}
               completedTiles={gamificationState.tilesValidated}
-              onTileValidate={(tileIdArg) => void handleTileValidation(tileIdArg)}
+              onTileValidate={(tileIdArg) => {
+                void runTileValidationSafely(tileIdArg);
+              }}
             />
             <Text style={styles.scanLink} onPress={() => setScanModeActive(true)}>
               Open scan mode
@@ -445,6 +472,7 @@ const styles = StyleSheet.create({
   },
   immersiveHint: { color: appTheme.colors.textSecondary, fontSize: appTheme.typography.caption },
   immersiveTier: { color: appTheme.colors.accentWarm, fontSize: appTheme.typography.overline, fontWeight: '700' },
+  fallbackHint: { color: appTheme.colors.accentWarning, fontSize: appTheme.typography.overline, fontWeight: '700' },
   immersiveCardWrap: {
     marginHorizontal: appTheme.spacing.md,
     marginBottom: appTheme.spacing.xs,
@@ -479,5 +507,11 @@ const styles = StyleSheet.create({
     marginBottom: appTheme.spacing.sm,
     color: appTheme.colors.accentSuccess,
     fontWeight: '700',
+  },
+  errorText: {
+    marginHorizontal: appTheme.spacing.sm,
+    marginBottom: appTheme.spacing.xs,
+    color: appTheme.colors.accentDanger,
+    fontSize: appTheme.typography.caption,
   },
 });

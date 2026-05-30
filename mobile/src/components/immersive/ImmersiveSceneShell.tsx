@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ImmersiveOnboardingOverlay } from './ImmersiveOnboardingOverlay';
 import { computeParallaxShift, sceneModePalette, type ImmersiveSceneMode, type ImmersiveSettings } from '../../immersive/immersiveSystem';
 import { appTheme } from '../../theme/tokens';
@@ -27,6 +27,8 @@ export const ImmersiveSceneShell: React.FC<Props> = ({
   onToggleComfort,
   children,
 }) => {
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const palette = sceneModePalette[sceneMode];
   const far = useMemo(() => computeParallaxShift('far', tiltX, tiltY, settings), [settings, tiltX, tiltY]);
   const mid = useMemo(() => computeParallaxShift('mid', tiltX, tiltY, settings), [settings, tiltX, tiltY]);
@@ -37,11 +39,13 @@ export const ImmersiveSceneShell: React.FC<Props> = ({
     <View style={styles.container}>
       <View style={[styles.bgFar, { backgroundColor: palette.bgBottom, transform: [{ translateX: far.x }, { translateY: far.y }] }]} />
       <View style={[styles.bgMid, { backgroundColor: palette.bgTop, transform: [{ translateX: mid.x }, { translateY: mid.y }] }]} />
-      <View style={[styles.ambientHalo, { backgroundColor: palette.particle, opacity: settings.lightingContrast * 0.6 }]} />
+      {!settings.minimalOverlayMode ? (
+        <View style={[styles.ambientHalo, { backgroundColor: palette.particle, opacity: settings.lightingContrast * 0.6 }]} />
+      ) : null}
       <View style={[styles.content, { transform: [{ translateX: near.x * 0.48 }, { translateY: near.y * 0.48 }, { scale: contrastBoost }] }]}>
         {children}
       </View>
-      <View style={styles.topControls}>
+      <View style={[styles.topControls, isLandscape && styles.topControlsLandscape]}>
         <Pressable style={styles.controlButton} onPress={onExit}>
           <Text style={styles.controlText}>Exit immersive</Text>
         </Pressable>
@@ -86,6 +90,11 @@ const styles = StyleSheet.create({
     right: appTheme.spacing.sm,
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  topControlsLandscape: {
+    top: appTheme.spacing.xs,
+    left: appTheme.spacing.xxl,
+    right: appTheme.spacing.xxl,
   },
   controlButton: {
     borderRadius: appTheme.radius.pill,

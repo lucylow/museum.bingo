@@ -19,6 +19,7 @@
 ## Page 7 — Compass/waypoint navigation
 - Added `components/immersive/SpatialWaypointOverlay.tsx` with directional cue + distance/proximity guidance.
 - Added directional/proximity utility functions in `immersive/immersiveSystem.ts`.
+- Added turn wording (`turn slightly`, `turn around`) and compact overlay mode support.
 
 ## Page 8 — Spatial multiplayer
 - Added `components/immersive/MultiplayerSpatialRoom.tsx`.
@@ -39,6 +40,7 @@
 
 ## Page 13 — Performance safeguards
 - Added `utils/ImmersivePerformance.ts` with tier classification, intensity adaptation, motion throttling helpers, and 2D fallback trigger path in game flow.
+- Added lightweight runtime fallback messaging and auto-disable behavior when performance tier drops.
 
 ## Page 14 — Tests and debug mocks
 - Added `__tests__/immersiveMode.test.ts` for direction calculations, comfort mode clamping, and performance fallback logic.

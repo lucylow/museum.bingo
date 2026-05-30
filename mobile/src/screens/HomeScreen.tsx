@@ -1,5 +1,5 @@
 import React from 'react';
-import { SafeAreaView, StyleSheet, Text } from 'react-native';
+import { Alert, SafeAreaView, StyleSheet, Text } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { AppButton } from '../components/ui/AppButton';
@@ -29,6 +29,14 @@ export const HomeScreen: React.FC = () => {
       return;
     }
     navigation.navigate('MuseumSelector');
+  };
+
+  const handleRefreshLocation = async () => {
+    try {
+      await refreshLocation();
+    } catch {
+      Alert.alert('Location update failed', 'We could not refresh your location. Please try again.');
+    }
   };
 
   return (
@@ -79,7 +87,7 @@ export const HomeScreen: React.FC = () => {
               {`Your location: ${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}`}
             </Text>
           ) : null}
-          <AppButton label="Refresh Location" onPress={() => void refreshLocation()} variant="ghost" style={styles.refreshButton} />
+          <AppButton label="Refresh Location" onPress={() => void handleRefreshLocation()} variant="ghost" style={styles.refreshButton} />
         </AppPanel>
       )}
       {!locationPermissionGranted ? (

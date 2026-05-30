@@ -68,6 +68,13 @@ export const CameraScreenWithHeatVision: React.FC<Props> = ({
     enableWifiRTT: false,
   });
 
+  const transitionHint =
+    scanState === 'matched'
+      ? 'Validation complete, returning to gallery state.'
+      : scanState === 'almost'
+        ? 'Transitioning from scan to lock-on.'
+        : 'Live camera + spatial HUD active.';
+
   useEffect(() => {
     if (error) {
       setScanState('error');
@@ -210,6 +217,7 @@ export const CameraScreenWithHeatVision: React.FC<Props> = ({
               ? `Source: ${userPosition?.source ?? 'initializing'} | Accuracy: ${Math.round(userPosition?.accuracy ?? 0)}m`
               : 'Preparing indoor positioning...'}
         </Text>
+        <Text style={styles.transitionText}>{transitionHint}</Text>
       </View>
 
       <TouchableOpacity
@@ -337,4 +345,5 @@ const styles = StyleSheet.create({
   confidenceFill: { height: '100%', backgroundColor: appTheme.colors.accentSuccess },
   confidenceText: { color: appTheme.colors.textSecondary, textAlign: 'center', marginTop: 4, marginBottom: 4, fontSize: 11 },
   statusText: { color: appTheme.colors.textSecondary, fontSize: appTheme.typography.caption, textAlign: 'center' },
+  transitionText: { color: appTheme.colors.info, fontSize: appTheme.typography.overline, textAlign: 'center', marginTop: 3 },
 });

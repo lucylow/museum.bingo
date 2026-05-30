@@ -29,8 +29,10 @@ export const RequirePremium: React.FC<RequirePremiumProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Premium Feature</Text>
-      <Text style={styles.message}>Upgrade to Premium to access this feature and more.</Text>
+      <Text style={styles.title}>Optional Premium Feature</Text>
+      <Text style={styles.message}>
+        Core bingo stays free. Premium unlocks convenience and style upgrades for frequent museum visits.
+      </Text>
       <TouchableOpacity style={styles.button} onPress={onUpgradePress}>
         <Text style={styles.buttonText}>View Plans</Text>
       </TouchableOpacity>

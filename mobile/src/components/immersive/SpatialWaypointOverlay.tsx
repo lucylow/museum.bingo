@@ -1,17 +1,19 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { getDirectionalCue, getMoveCloserCue } from '../../immersive/immersiveSystem';
+import { getDirectionalCue, getMoveCloserCue, getTurnCue } from '../../immersive/immersiveSystem';
 import { appTheme } from '../../theme/tokens';
 
 interface Props {
   relativeBearing: number;
   distanceMeters: number;
   targetTitle: string;
+  compact?: boolean;
 }
 
-export const SpatialWaypointOverlay: React.FC<Props> = ({ relativeBearing, distanceMeters, targetTitle }) => {
+export const SpatialWaypointOverlay: React.FC<Props> = ({ relativeBearing, distanceMeters, targetTitle, compact = false }) => {
   const direction = getDirectionalCue(relativeBearing);
   const proximity = getMoveCloserCue(distanceMeters);
+  const turnCue = getTurnCue(relativeBearing);
   return (
     <View style={styles.wrap}>
       <View style={styles.ring}>
@@ -22,6 +24,7 @@ export const SpatialWaypointOverlay: React.FC<Props> = ({ relativeBearing, dista
         <Text style={styles.meta}>
           {Math.round(distanceMeters)}m • {direction} • {proximity}
         </Text>
+        {!compact ? <Text style={styles.turnCue}>{turnCue}</Text> : null}
       </View>
     </View>
   );
@@ -65,5 +68,12 @@ const styles = StyleSheet.create({
     color: appTheme.colors.textSecondary,
     textAlign: 'center',
     fontSize: appTheme.typography.caption,
+  },
+  turnCue: {
+    color: appTheme.colors.accentWarm,
+    textAlign: 'center',
+    marginTop: 2,
+    fontSize: appTheme.typography.overline,
+    fontWeight: '700',
   },
 });

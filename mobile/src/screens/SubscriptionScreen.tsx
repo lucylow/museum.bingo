@@ -54,6 +54,12 @@ const ITEM_ENTITLEMENT_MAP: Record<string, string> = {
   premium_unlimited: 'unlimitedMuseums',
 };
 
+const COSMETIC_LOCKER_ITEMS = [
+  { id: 'skin-impressionist', name: 'Impressionist Card Skin', rarity: 'Rare', owned: true, equipped: true },
+  { id: 'frame-curator', name: 'Curator Avatar Frame', rarity: 'Epic', owned: true, equipped: false },
+  { id: 'confetti-marble', name: 'Marble Hall Confetti', rarity: 'Uncommon', owned: false, equipped: false },
+];
+
 export const SubscriptionScreen: React.FC = () => {
   const { user, getIdToken } = useAuth();
   const { loading, state: monetizationState, architecture, refresh } = useMonetization();
@@ -68,10 +74,14 @@ export const SubscriptionScreen: React.FC = () => {
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
+      setBootstrapError(null);
       await Promise.all([fetchTiers(), fetchCatalog(), fetchSubscriptionStatus(), refresh()]);
+    } catch {
+      setBootstrapError('Some subscription data could not be loaded. You can retry below.');
     } finally {
       setBootstrapped(true);
     }
@@ -181,6 +191,13 @@ export const SubscriptionScreen: React.FC = () => {
         { token }
       );
       const payload = (response as unknown as { data?: { sessionId: string; url: string } }).data ?? (response as { sessionId: string; url: string });
+      if (!payload.url) {
+        throw new Error('Missing checkout URL');
+      }
+      const canOpen = await Linking.canOpenURL(payload.url);
+      if (!canOpen) {
+        throw new Error('Unsupported checkout URL');
+      }
       await trackRevenue({ eventType: 'subscription_purchased', bucket: 'freemium_upgrade', productId: priceId });
       await Linking.openURL(payload.url);
     } catch {
@@ -207,6 +224,13 @@ export const SubscriptionScreen: React.FC = () => {
         { token }
       );
       const payload = (response as unknown as { data?: { url: string } }).data ?? (response as { url: string });
+      if (!payload.url) {
+        throw new Error('Missing portal URL');
+      }
+      const canOpen = await Linking.canOpenURL(payload.url);
+      if (!canOpen) {
+        throw new Error('Unsupported portal URL');
+      }
       await Linking.openURL(payload.url);
     } catch {
       Alert.alert('Error', 'Failed to open customer portal.');
@@ -239,6 +263,14 @@ export const SubscriptionScreen: React.FC = () => {
       <Text style={styles.subtitle}>
         Keep core gameplay free, then unlock premium modes, cosmetics, and event rewards when you are ready.
       </Text>
+      {bootstrapError ? <Text style={styles.errorBanner}>{bootstrapError}</Text> : null}
+      {bootstrapError ? (
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => {
+          setBootstrapped(false);
+        }}>
+          <Text style={styles.secondaryText}>Retry Loading Subscription Data</Text>
+        </TouchableOpacity>
+      ) : null}
       <View style={styles.trustPanel}>
         {(architecture?.plan.trustPrinciples ?? [
           'Core bingo is always free.',
@@ -346,8 +378,19 @@ export const SubscriptionScreen: React.FC = () => {
                 </Text>
               </View>
               <Text style={styles.catalogDescription}>{product.description}</Text>
+              <Text style={styles.unlockHint}>Bundle pricing: ${(product.priceCents / 100).toFixed(2)} {product.currency}</Text>
             </View>
           ))}
+        {COSMETIC_LOCKER_ITEMS.map((item) => (
+          <View key={item.id} style={styles.trackRow}>
+            <Text style={styles.trackTitle}>
+              {item.name} • {item.rarity}
+            </Text>
+            <Text style={styles.trackMeta}>
+              {item.owned ? 'Owned' : 'Not owned'} • {item.equipped ? 'Equipped' : 'Preview available'}
+            </Text>
+          </View>
+        ))}
         <Text style={styles.unlockHint}>{cosmeticGate.reason}</Text>
       </View>
 
@@ -375,6 +418,8 @@ export const SubscriptionScreen: React.FC = () => {
         <View style={styles.catalogItem}>
           <Text style={styles.catalogTitle}>Partner Dashboard Snapshot</Text>
           <Text style={styles.catalogDescription}>Top prompts, dwell time, completion rate, repeat visitors, and sponsor placement controls.</Text>
+          <Text style={styles.trackMeta}>Visitor engagement: 72% • Avg dwell: 31m • Repeat visits: 24%</Text>
+          <Text style={styles.trackMeta}>Challenge completion: 61% • Top prompt: "Find the surreal portrait"</Text>
           <Text style={styles.unlockHint}>{partnerGate.reason}</Text>
         </View>
       </View>
@@ -545,6 +590,12 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginTop: 20 },
   subtitle: { textAlign: 'center', color: '#666', marginBottom: 18 },
+  errorBanner: {
+    textAlign: 'center',
+    color: '#B42318',
+    marginBottom: 10,
+    fontWeight: '600',
+  },
   trustPanel: {
     backgroundColor: '#fff',
     borderRadius: 14,
@@ -554,6 +605,7 @@ const styles = StyleSheet.create({
   trustPoint: { color: '#2d3a4e', marginBottom: 5, fontSize: 13 },
   activeBadge: { backgroundColor: '#4CAF50', padding: 12, borderRadius: 12, marginBottom: 20, alignItems: 'center' },
   activeText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  successCopy: { color: '#ebffe8', fontSize: 12, marginTop: 6, textAlign: 'center' },
   manageLink: { color: '#fff', marginTop: 8, textDecorationLine: 'underline' },
   card: {
     backgroundColor: '#fff',

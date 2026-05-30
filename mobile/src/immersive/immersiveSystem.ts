@@ -136,6 +136,18 @@ export const getDirectionalCue = (relativeBearing: number): 'front' | 'left' | '
   return 'left';
 };
 
+export const getTurnCue = (relativeBearing: number): string => {
+  const direction = getDirectionalCue(relativeBearing);
+  if (direction === 'front') return 'On heading';
+  if (direction === 'behind') return 'Turn around';
+  const normalized = ((relativeBearing % 360) + 360) % 360;
+  const nearThreshold = direction === 'right' ? normalized <= 95 : normalized >= 265;
+  if (nearThreshold) {
+    return `Turn slightly ${direction}`;
+  }
+  return `Turn ${direction}`;
+};
+
 export const getMoveCloserCue = (distanceMeters: number): 'arrived' | 'close' | 'move-closer' | 'far' => {
   if (distanceMeters < 3) return 'arrived';
   if (distanceMeters < 9) return 'close';

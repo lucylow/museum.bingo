@@ -15,6 +15,21 @@ export interface UserProfile {
   photoURL?: string;
   isPremium: boolean;
   totalBingos: number;
+  subscriptionTier?: string | null;
+  subscriptionStatus?: string | null;
+  currentPeriodEnd?: Timestamp | null;
+  monetizationAddOns?: string[];
+  seasonalPassActive?: boolean;
+  partnerSubscriptionLevel?: 'none' | 'starter' | 'white_label' | 'enterprise';
+  promoCodes?: string[];
+  trialState?: {
+    eligible: boolean;
+    active: boolean;
+    startedAt?: string;
+    endsAt?: string;
+    consumed: boolean;
+    offerCode?: string;
+  };
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
